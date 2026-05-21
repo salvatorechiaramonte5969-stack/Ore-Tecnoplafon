@@ -1811,11 +1811,19 @@
 
 
     .collab-quick-suggest {
+      display: none;
       margin-top: 6px;
       margin-bottom: 10px;
-      max-height: 190px;
+      max-height: 230px;
+      overflow-y: auto;
       border-radius: 12px;
       box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
+      -webkit-overflow-scrolling: touch;
+      touch-action: manipulation;
+    }
+
+    .collab-quick-suggest.aperto {
+      display: block !important;
     }
 
     .collab-quick-suggest .suggerimento-voce {
@@ -2011,12 +2019,12 @@
 
         <div class="collab-simple-form" id="collabQuickForm">
           <label for="collabQuickCantiere">Cantiere</label>
-          <input id="collabQuickCantiere" list="collabQuickListaCantieri" autocomplete="off" placeholder="Cerca e scegli cantiere" oninput="collabQuickMostraSuggerimentiCantiere(); collabQuickCambiaCantiere()" onfocus="collabQuickMostraSuggerimentiCantiere()" onchange="collabQuickCambiaCantiere()" />
+          <input id="collabQuickCantiere" list="collabQuickListaCantieri" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="search" placeholder="Cerca e scegli cantiere" oninput="collabQuickMostraSuggerimentiCantiere(); collabQuickCambiaCantiere()" onfocus="collabQuickMostraSuggerimentiCantiere()" onclick="collabQuickMostraSuggerimentiCantiere()" onkeyup="collabQuickMostraSuggerimentiCantiere()" onchange="collabQuickCambiaCantiere()" />
           <datalist id="collabQuickListaCantieri"></datalist>
           <div id="collabQuickSuggerimentiCantiere" class="suggerimenti-ricerca collab-quick-suggest"></div>
 
           <label for="collabQuickLavoro">Tipologia di lavoro</label>
-          <input id="collabQuickLavoro" list="collabQuickListaLavori" autocomplete="off" placeholder="Cerca e scegli tipologia di lavoro" oninput="collabQuickMostraSuggerimentiLavoro()" onfocus="collabQuickMostraSuggerimentiLavoro()" />
+          <input id="collabQuickLavoro" list="collabQuickListaLavori" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="search" placeholder="Cerca e scegli tipologia di lavoro" oninput="collabQuickMostraSuggerimentiLavoro()" onfocus="collabQuickMostraSuggerimentiLavoro()" onclick="collabQuickMostraSuggerimentiLavoro()" onkeyup="collabQuickMostraSuggerimentiLavoro()" />
           <datalist id="collabQuickListaLavori"></datalist>
           <div id="collabQuickSuggerimentiLavoro" class="suggerimenti-ricerca collab-quick-suggest"></div>
 
@@ -6873,6 +6881,9 @@ ${descrizione}`)) return;
       if (btn) btn.textContent = aperto ? "Chiudi inserimento ore" : "+ Apri inserimento ore";
       collabQuickAggiornaScelte();
       collabQuickRenderOggi();
+      if (aperto) {
+        setTimeout(() => collabQuickMostraSuggerimentiCantiere(), 80);
+      }
     }
 
     function collabQuickCambiaCantiere() {
@@ -6897,13 +6908,14 @@ ${descrizione}`)) return;
     function collabQuickRenderSuggerimenti(boxId, valori, nomeFunzioneScelta) {
       const box = document.getElementById(boxId);
       if (!box) return;
+      box.setAttribute("role", "listbox");
       if (!valori.length) {
         box.innerHTML = '<div class="suggerimento-vuoto">Nessuna voce trovata.</div>';
         box.classList.add("aperto");
         return;
       }
       box.innerHTML = valori.map(voce => `
-        <button type="button" class="suggerimento-voce" data-voce="${escapeAttribute(voce)}" onclick="${nomeFunzioneScelta}(this.dataset.voce)">${escapeHtml(voce)}</button>
+        <button type="button" class="suggerimento-voce" role="option" data-voce="${escapeAttribute(voce)}" onclick="${nomeFunzioneScelta}(this.dataset.voce)" onpointerdown="event.preventDefault(); ${nomeFunzioneScelta}(this.dataset.voce)" ontouchstart="event.preventDefault(); ${nomeFunzioneScelta}(this.dataset.voce)">${escapeHtml(voce)}</button>
       `).join("");
       box.classList.add("aperto");
     }
@@ -6911,12 +6923,14 @@ ${descrizione}`)) return;
     function collabQuickMostraSuggerimentiCantiere() {
       collabQuickAggiornaScelte();
       const testo = document.getElementById("collabQuickCantiere")?.value || "";
+      document.getElementById("collabQuickSuggerimentiLavoro")?.classList.remove("aperto");
       collabQuickRenderSuggerimenti("collabQuickSuggerimentiCantiere", collabQuickFiltraValori(cantieriAttivi(), testo), "collabQuickScegliCantiere");
     }
 
     function collabQuickMostraSuggerimentiLavoro() {
       collabQuickAggiornaScelte();
       const testo = document.getElementById("collabQuickLavoro")?.value || "";
+      document.getElementById("collabQuickSuggerimentiCantiere")?.classList.remove("aperto");
       collabQuickRenderSuggerimenti("collabQuickSuggerimentiLavoro", collabQuickFiltraValori(collabQuickValoriLavori(), testo), "collabQuickScegliLavoro");
     }
 
