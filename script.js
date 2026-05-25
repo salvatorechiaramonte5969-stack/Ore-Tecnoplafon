@@ -2941,7 +2941,7 @@ ${descrizione}`)) return;
   </style>
 
 </head>
-</head>
+
 <body>
   <div class="print"><button onclick="window.print()">Stampa questa raccolta</button></div>
   <h1>Raccolta ore collaboratore</h1>
