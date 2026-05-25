@@ -2715,493 +2715,7 @@ ${descrizione}`)) return;
 <head>
   <meta charset="utf-8">
   <title>Raccolta ore ${escapeHtml(collaboratore)} ${escapeHtml(dal || "")} ${escapeHtml(al || "")}</title>
-  <style>
-    body { font-family: Arial, Helvetica, sans-serif; color: #111827; margin: 24px; }
-    h1 { margin-bottom: 2px; font-size: 17px; }
-    h2 { font-size: 13px; margin: 8px 0 4px; }
-    .nome-collaboratore { font-size: 24px; font-weight: 800; margin: 2px 0 5px; color: #111827; }
-    .muted { color: #6b7280; margin: 0 0 5px; font-size: 9px; }
-    .regola-calendario { margin: 5px 0 4px; padding: 5px 7px; border: 1px solid #bfdbfe; border-left: 4px solid #0B6FEA; border-radius: 6px; background: #eff6ff; color: #1e3a8a; font-size: 8.5px; line-height: 1.25; }
-    .regola-calendario strong { color: #0f172a; }
-    .totali { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 7px 0; }
-    .box { border: 1px solid #d1d5db; border-radius: 6px; padding: 5px; background: #f9fafb; font-size: 9px; }
-    .box strong { display: block; font-size: 12px; margin-top: 1px; }
-    .situazione-mese { gap: 3px; margin: 4px 0 6px; }
-    .situazione-mese .box { padding: 3px 4px; font-size: 8px; border-radius: 4px; }
-    .situazione-mese .box strong { font-size: 10px; line-height: 1.15; }
-    table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-    th, td { border: 1px solid #d1d5db; padding: 3px; font-size: 9px; text-align: left; vertical-align: middle; }
-    th { background: #f3f4f6; }
-    .numero { text-align: right; }
-    .totale { font-weight: bold; background: #fef3c7; }
-    .scroll-x { overflow-x: auto; margin-top: 6px; }
-    .tabella-orizzontale { width: 100%; min-width: 0; table-layout: fixed; }
-    .tabella-orizzontale th, .tabella-orizzontale td { text-align: center; min-width: 0; padding: 2px 1px; font-size: 9px; line-height: 1.1; }
-    .tabella-orizzontale .cantiere-col { position: static; left: auto; background: #ffffff; text-align: left; width: 88px; min-width: 88px; max-width: 88px; z-index: 2; overflow: hidden; word-break: break-word; }
-    .tabella-orizzontale tbody td { background: #ffffff; }
-    .tabella-orizzontale .sabato { background: #e8e9ff; }
-    .tabella-orizzontale .domenica, .tabella-orizzontale .festivo { background: #fdeaea; }
-    .tabella-orizzontale .vacanza { background: #dcfce7; }
-    .tabella-orizzontale .totali-cumulati td { background: #fef3c7 !important; font-weight: bold; }
-    .tabella-orizzontale .totali-cumulati .sabato { background: #e8e9ff !important; }
-    .tabella-orizzontale .totali-cumulati .domenica, .tabella-orizzontale .totali-cumulati .festivo { background: #fdeaea !important; }
-    .tabella-orizzontale .totali-cumulati .vacanza { background: #dcfce7 !important; }
-    .tabella-orizzontale .totali-cumulati .cantiere-col,
-    .tabella-orizzontale .totali-cumulati .numero.totale,
-    .tabella-orizzontale .totali-cumulati .totale:not(.sabato):not(.domenica):not(.festivo):not(.vacanza) { background: #fef3c7 !important; }
-    .print { margin: 10px 0; }
-    button { padding: 8px 12px; border: 0; border-radius: 8px; background: #111827; color: white; font-weight: bold; cursor: pointer; }
-    @page { size: A4 landscape; margin: 6mm; }
-
-
-    /* Login WorkHub moderno senza demo */
-    .workhub-login-wrap {
-      min-height: 560px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 26px 12px 34px;
-      background: radial-gradient(circle at top, #ffffff 0%, #f3f7ff 52%, #eef2f7 100%);
-      border-bottom: 1px solid #e5e7eb;
-    }
-
-    #supabaseLoginBox.workhub-login-card {
-      width: min(620px, 96vw);
-      margin: 0 auto !important;
-      border: 0 !important;
-      border-radius: 26px;
-      padding: 26px 28px 24px;
-      background: rgba(255,255,255,0.96);
-      box-shadow: 0 26px 70px rgba(15, 23, 42, 0.16);
-    }
-
-    .workhub-logo {
-      text-align: center;
-      margin-bottom: 12px;
-    }
-
-    .workhub-logo-main {
-      display: inline-block;
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: clamp(30px, 6vw, 48px);
-      line-height: 1;
-      font-weight: 900;
-      letter-spacing: -1px;
-      color: #0f4aa2;
-      text-shadow: 0 2px 0 rgba(15,74,162,0.08);
-    }
-
-    .workhub-logo-main small {
-      font-size: 0.42em;
-      margin-left: 4px;
-      vertical-align: top;
-    }
-
-    .workhub-logo-sub {
-      margin-top: 4px;
-      font-size: 10px;
-      letter-spacing: 7px;
-      font-weight: bold;
-      color: #1d4ed8;
-      text-transform: uppercase;
-    }
-
-    .workhub-title {
-      text-align: center;
-      margin: 16px 0 4px;
-      font-size: clamp(26px, 5vw, 36px);
-      line-height: 1.1;
-      color: #111827;
-      font-weight: 900;
-    }
-
-    .workhub-subtitle {
-      text-align: center;
-      margin: 0 0 18px;
-      color: #6b7280;
-      font-size: 15px;
-    }
-
-    .workhub-role-switch {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      max-width: 390px;
-      margin: 0 auto 20px;
-    }
-
-    .workhub-role-btn {
-      margin: 0;
-      min-height: 54px;
-      border-radius: 12px;
-      border: 1px solid #e5e7eb;
-      background: #ffffff;
-      color: #111827;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      font-weight: 800;
-    }
-
-    .workhub-role-btn.attivo {
-      border-color: #0b6ff0;
-      background: linear-gradient(180deg, #0b76ff 0%, #075dcc 100%);
-      color: #ffffff;
-      box-shadow: 0 10px 26px rgba(37, 99, 235, 0.35);
-    }
-
-    .workhub-access-tabs {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      margin: 10px 0 18px;
-      border-radius: 12px;
-      overflow: hidden;
-      background: #f3f4f6;
-      border: 1px solid #eef2f7;
-    }
-
-    .workhub-tab {
-      margin: 0;
-      min-height: 48px;
-      border-radius: 0;
-      background: transparent;
-      color: #6b7280;
-      border-bottom: 3px solid transparent;
-      box-shadow: none;
-    }
-
-    .workhub-tab.attivo {
-      background: #ffffff;
-      color: #0b6ff0;
-      border-bottom-color: #0b6ff0;
-    }
-
-    .workhub-field label {
-      font-size: 14px;
-      margin: 12px 0 7px;
-      color: #111827;
-    }
-
-    .workhub-input-wrap {
-      position: relative;
-    }
-
-    .workhub-input-wrap .workhub-icon {
-      position: absolute;
-      left: 14px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #6b7280;
-      font-size: 18px;
-      pointer-events: none;
-    }
-
-    .workhub-input-wrap input {
-      min-height: 52px;
-      padding-left: 46px;
-      padding-right: 46px;
-      border-radius: 12px;
-      font-size: 16px;
-      border-color: #e5e7eb;
-    }
-
-    .workhub-eye {
-      position: absolute;
-      right: 9px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 34px;
-      height: 34px;
-      min-height: 34px;
-      margin: 0;
-      padding: 0;
-      border-radius: 999px;
-      background: transparent;
-      color: #6b7280;
-      box-shadow: none;
-    }
-
-    .workhub-options {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin: 12px 0 14px;
-      color: #6b7280;
-      font-size: 14px;
-    }
-
-    .workhub-remember {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .workhub-remember input {
-      width: 20px;
-      height: 20px;
-      padding: 0;
-      margin: 0;
-      border-radius: 6px;
-    }
-
-    .workhub-link-btn {
-      width: auto;
-      min-height: auto;
-      padding: 0;
-      margin: 0;
-      background: transparent;
-      color: #0b6ff0;
-      font-size: 14px;
-      box-shadow: none;
-    }
-
-    .workhub-submit {
-      min-height: 54px;
-      border-radius: 13px;
-      background: linear-gradient(180deg, #0b76ff 0%, #075dcc 100%);
-      box-shadow: 0 12px 30px rgba(37, 99, 235, 0.28);
-      font-size: 17px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-
-    .workhub-mini-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-      margin-top: 12px;
-    }
-
-    .workhub-mini-actions button {
-      width: auto;
-      margin: 0;
-      min-height: 38px;
-      border-radius: 999px;
-      background: #f3f4f6;
-      color: #111827;
-      font-size: 13px;
-      box-shadow: none;
-    }
-
-    .workhub-lock-note {
-      text-align: center;
-      color: #6b7280;
-      font-size: 13px;
-      margin: 16px 0 0;
-    }
-
-    .workhub-register-info {
-      display: none;
-      border: 1px solid #dbeafe;
-      background: #eff6ff;
-      color: #1e3a8a;
-      border-radius: 12px;
-      padding: 12px;
-      font-size: 14px;
-      line-height: 1.4;
-      margin-bottom: 12px;
-    }
-
-    .workhub-register-info.aperto { display: block; }
-
-    @media (max-width: 600px) {
-      .workhub-login-wrap { min-height: 100vh; padding: 18px 10px; }
-      #supabaseLoginBox.workhub-login-card { padding: 22px 16px 20px; border-radius: 22px; }
-      .workhub-role-switch { gap: 10px; }
-      .workhub-role-btn { min-height: 50px; font-size: 14px; }
-      .workhub-options { align-items: flex-start; flex-direction: column; }
-      .workhub-logo-sub { letter-spacing: 4px; }
-    }
-
-
-    /* Ritocco grafico elegante: solo CSS, logica invariata.
-       I bottoni stato operai restano verdi/rossi. */
-    :root {
-      --accent: #0B6FEA;
-      --danger: #0B6FEA;
-      --text: #1f2937;
-      --muted: #64748b;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, Helvetica, sans-serif;
-      font-weight: 400;
-      letter-spacing: -0.01em;
-      color: #1f2937;
-    }
-
-    header h1,
-    .card h2,
-    .mini-title,
-    .workhub-title,
-    .summary-box h3,
-    .collab-detail h4 {
-      font-weight: 650;
-      letter-spacing: -0.025em;
-    }
-
-    header p,
-    .note,
-    label,
-    th,
-    td,
-    input,
-    select,
-    textarea {
-      font-weight: 400;
-    }
-
-    label {
-      color: #374151;
-      font-size: 12px;
-      letter-spacing: 0.01em;
-    }
-
-    input, select, textarea {
-      border-color: #e5e7eb;
-      border-radius: 11px;
-      box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02);
-    }
-
-    input:focus, select:focus, textarea:focus {
-      outline: 2px solid rgba(11, 111, 234, 0.14);
-      border-color: rgba(11, 111, 234, 0.45);
-    }
-
-    .card,
-    .summary-box,
-    details.resoconto,
-    .total-box,
-    .collab-detail,
-    .cantiere-detail {
-      border-color: #e5e7eb;
-      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
-    }
-
-    button,
-    button.secondary,
-    button.danger,
-    button.small,
-    .giorno-nav button,
-    .tag button,
-    .tag .azione-stato,
-    .cantieri-tabs button,
-    .operai-tabs button,
-    .cantieri-tabs button.attivo,
-    .operai-tabs button.attivo,
-    .quick-download-btn,
-    .workhub-role-btn.attivo,
-    .workhub-submit,
-    .workhub-mini-actions button {
-      background: #0B6FEA !important;
-      border: 1px solid #0B6FEA !important;
-      color: #ffffff !important;
-      font-weight: 500 !important;
-      letter-spacing: -0.01em;
-      border-radius: 11px;
-      box-shadow: 0 4px 12px rgba(11, 111, 234, 0.16);
-      transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-    }
-
-    button:hover,
-    button.secondary:hover,
-    button.danger:hover,
-    .quick-download-btn:hover,
-    .workhub-submit:hover,
-    .workhub-mini-actions button:hover {
-      background: #075CC4 !important;
-      border-color: #075CC4 !important;
-      box-shadow: 0 6px 16px rgba(11, 111, 234, 0.20);
-      transform: translateY(-1px);
-    }
-
-    button.small,
-    .tag button,
-    .tag .azione-stato,
-    .giorno-nav button {
-      box-shadow: none;
-      font-size: 12px;
-    }
-
-    /* Stato operai: questi devono rimanere verdi/rossi e ben leggibili */
-    .operaio-mini-btn.ok,
-    .operaio-quick.ok {
-      background: #DCFCE7 !important;
-      border-color: #16A34A !important;
-      color: #14532D !important;
-      box-shadow: none !important;
-    }
-
-    .operaio-mini-btn.manca,
-    .operaio-quick.manca {
-      background: #FEE2E2 !important;
-      border-color: #DC2626 !important;
-      color: #7F1D1D !important;
-      box-shadow: none !important;
-    }
-
-    .operaio-mini-btn.attivo,
-    .operaio-quick.attivo {
-      outline: 2px solid #0B6FEA !important;
-      outline-offset: 2px;
-    }
-
-    .operaio-mini-btn,
-    .operaio-quick {
-      font-weight: 500 !important;
-      border-radius: 12px;
-      letter-spacing: -0.01em;
-    }
-
-    .operaio-mini-btn strong,
-    .operaio-quick strong {
-      font-weight: 600;
-    }
-
-    .workhub-login-card {
-      box-shadow: 0 18px 55px rgba(15, 23, 42, 0.10) !important;
-    }
-
-    .workhub-submit {
-      min-height: 48px;
-      font-size: 15px;
-    }
-
-    .workhub-role-btn,
-    .workhub-tab {
-      font-weight: 500 !important;
-    }
-
-    .total-box strong,
-    .ore-evidenza {
-      font-weight: 650;
-    }
-
-    @media print {
-      .print { display: none; }
-      body { margin: 0; font-size: 9px; }
-      h1 { font-size: 15px; margin: 0 0 1px; }
-      h2 { font-size: 11px; margin: 5px 0 2px; page-break-after: avoid; }
-      .nome-collaboratore { font-size: 22px; margin: 1px 0 3px; }
-      .muted { font-size: 7px; margin-bottom: 3px; }
-      .regola-calendario { margin: 3px 0 2px; padding: 3px 5px; font-size: 7px; border-radius: 4px; }
-      .totali { gap: 3px; margin: 4px 0; }
-      .box { padding: 3px; font-size: 7px; border-radius: 4px; }
-      .box strong { font-size: 10px; }
-      .situazione-mese .box { padding: 2px 3px; font-size: 7px; }
-      .situazione-mese .box strong { font-size: 9px; }
-      th, td { padding: 2px; font-size: 8px; }
-      .tabella-orizzontale th, .tabella-orizzontale td { padding: 1px; font-size: 8px; line-height: 1.05; }
-      .tabella-orizzontale .cantiere-col { width: 76px; min-width: 76px; max-width: 76px; }
-      .scroll-x { overflow: visible; }
-    }
-  </style>
+  
 </head>
 <body>
   <div class="print"><button onclick="window.print()">Stampa questa raccolta</button></div>
@@ -3392,77 +2906,7 @@ ${descrizione}`)) return;
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, Helvetica, sans-serif; color: #111827; }
-    h1 { font-size: 22px; margin-bottom: 4px; }
-    h2 { font-size: 18px; margin-top: 24px; }
-    p { margin: 4px 0 12px; }
-    table { border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
-    th, td { border: 1px solid #999999; padding: 6px; font-size: 12px; vertical-align: top; }
-    th { background: #e5e7eb; font-weight: bold; }
-    .numero { text-align: right; }
-    .totale { font-weight: bold; background: #fef3c7; }
-    .sabato { background: #e8e9ff; }
-    .domenica { background: #fdeaea; }
   
-
-    /* CORREZIONE FINALE COLORI OPERAI/DIPENDENTI
-       I bottoni degli operai devono restare indipendenti dai bottoni blu generali:
-       - ok = verde se hanno ore nel giorno selezionato
-       - manca = rosso se non hanno ore nel giorno selezionato */
-    button.operaio-mini-btn,
-    button.operaio-quick,
-    .operai-lista-alta button.operaio-mini-btn,
-    #operaiListaAlta button.operaio-mini-btn,
-    #operaiListaSinistra button.operaio-quick {
-      background: #fee2e2 !important;
-      border: 1px solid #ef4444 !important;
-      color: #7f1d1d !important;
-      box-shadow: none !important;
-      font-weight: 500 !important;
-    }
-
-    button.operaio-mini-btn.ok,
-    button.operaio-quick.ok,
-    .operai-lista-alta button.operaio-mini-btn.ok,
-    #operaiListaAlta button.operaio-mini-btn.ok,
-    #operaiListaSinistra button.operaio-quick.ok {
-      background: #dcfce7 !important;
-      border-color: #22c55e !important;
-      color: #14532d !important;
-    }
-
-    button.operaio-mini-btn.manca,
-    button.operaio-quick.manca,
-    .operai-lista-alta button.operaio-mini-btn.manca,
-    #operaiListaAlta button.operaio-mini-btn.manca,
-    #operaiListaSinistra button.operaio-quick.manca {
-      background: #fee2e2 !important;
-      border-color: #ef4444 !important;
-      color: #7f1d1d !important;
-    }
-
-    button.operaio-mini-btn.ok span,
-    button.operaio-quick.ok span,
-    button.operaio-mini-btn.ok strong,
-    button.operaio-quick.ok strong {
-      color: #14532d !important;
-    }
-
-    button.operaio-mini-btn.manca span,
-    button.operaio-quick.manca span,
-    button.operaio-mini-btn.manca strong,
-    button.operaio-quick.manca strong {
-      color: #7f1d1d !important;
-    }
-
-    button.operaio-mini-btn.attivo,
-    button.operaio-quick.attivo {
-      outline: 2px solid #2563eb !important;
-      outline-offset: 2px !important;
-    }
-
-  </style>
 </head>
 <body>
   <h1>Esportazione ore collaboratori</h1>
@@ -5150,51 +4594,22 @@ ${descrizione}`)) return;
     }
 
     function collabAppMostraSezione(sezione) {
-      // Apertura tipo app: il menu sparisce e la pagina scelta prende il suo posto.
-      const home = document.getElementById("collabHomeScreen");
-      if (home) home.classList.add("sezione-aperta");
-
       ["ore", "mese", "vacanze", "stampa"].forEach(nome => {
         const id = "collabView" + nome.charAt(0).toUpperCase() + nome.slice(1);
         document.getElementById(id)?.classList.toggle("attiva", nome === sezione);
       });
-
       const pannello = document.getElementById("collabQuickPanel");
       if (pannello) pannello.classList.toggle("aperto", sezione === "ore");
-
-      requestAnimationFrame(() => {
-        try {
-          if (sezione === "ore") {
-            collabQuickAggiornaScelte();
-            collabQuickRenderOggi();
-            setTimeout(() => {
-              collabQuickMostraSuggerimentiCantiere();
-              document.getElementById("collabQuickCantiere")?.focus();
-            }, 30);
-          } else if (sezione === "mese") {
-            collabQuickRenderOggi();
-            collabQuickRenderMese();
-          } else if (sezione === "vacanze") {
-            collabAppRenderVacanze();
-            const oggi = dataIsoOggi();
-            const dal = document.getElementById("collabVacanzaDal");
-            const al = document.getElementById("collabVacanzaAl");
-            if (dal && !dal.value) dal.value = oggi;
-            if (al && !al.value) al.value = dal?.value || oggi;
-            setTimeout(() => dal?.focus(), 30);
-          } else if (sezione === "stampa") {
-            collabQuickRenderMese();
-          }
-        } catch (errore) {
-          console.warn("Aggiornamento pagina collaboratore non completato:", errore);
-        }
-      });
+      collabQuickAggiornaScelte();
+      collabQuickRenderOggi();
+      collabQuickRenderMese();
+      collabAppRenderVacanze();
+      if (sezione === "ore") setTimeout(() => collabQuickMostraSuggerimentiCantiere(), 80);
     }
 
     function collabAppChiudiSezioni() {
       ["collabViewOre", "collabViewMese", "collabViewVacanze", "collabViewStampa"].forEach(id => document.getElementById(id)?.classList.remove("attiva"));
       document.getElementById("collabQuickPanel")?.classList.remove("aperto");
-      document.getElementById("collabHomeScreen")?.classList.remove("sezione-aperta");
     }
 
     function collabAppCaricaVacanze() {
@@ -5247,45 +4662,23 @@ ${descrizione}`)) return;
       try {
         const client = inizializzaSupabase();
         const sessione = client ? await supabaseSessioneCorrente() : null;
-        if (!client || !sessione) return false;
-
-        if (!supabaseProfilo && typeof supabaseCaricaProfilo === "function") {
-          await supabaseCaricaProfilo();
-        }
-
-        const aziendaId = (supabaseProfilo && supabaseProfilo.azienda_id) || SUPABASE_AZIENDA_ID;
-        const emailCollaboratore = (supabaseUtente && supabaseUtente.email) || "";
-
+        if (!client || !sessione || !supabaseProfilo) return false;
         const payload = {
-          azienda_id: aziendaId,
-          collaboratore: richiesta.nome,
-          email_collaboratore: emailCollaboratore,
+          azienda_id: supabaseProfilo.azienda_id || null,
+          collaboratore_id: supabaseUtente ? supabaseUtente.id : null,
+          collaboratore_nome: richiesta.nome,
           dal: richiesta.dal,
           al: richiesta.al,
-          nota: richiesta.motivo || "",
-          stato: "in_attesa"
+          motivo: richiesta.motivo || "",
+          stato: richiesta.stato || "Inviata",
+          letta: false,
+          creata: richiesta.creata
         };
-
-        const { data, error } = await client
-          .from("richieste_vacanze")
-          .insert(payload)
-          .select("id")
-          .single();
-
+        const { error } = await client.from("richieste_vacanze").insert(payload);
         if (error) {
-          console.warn("Richiesta vacanza salvata solo in locale. Controlla colonne/policy Supabase.", error);
+          console.warn("Richiesta vacanza salvata solo in locale. Tabella online non disponibile o campi diversi.", error);
           return false;
         }
-
-        if (data && data.id) {
-          richiesta.id = String(data.id);
-          richiesta.origine = "online";
-          richiesta.stato = "in_attesa";
-          const lista = collabAppCaricaVacanze();
-          const aggiornata = lista.map(r => r.id === richiesta.id ? richiesta : r);
-          collabAppSalvaVacanze(aggiornata);
-        }
-
         return true;
       } catch (errore) {
         console.warn("Richiesta vacanza salvata solo in locale.", errore);
@@ -5333,7 +4726,7 @@ ${descrizione}`)) return;
       box.innerHTML = '<h3>Le tue richieste</h3>' + lista.map(r => `
         <div class="collab-vacanza-item">
           <strong>${fmtData(r.dal)} - ${fmtData(r.al)}</strong><br>
-          Stato: ${escapeHtml(formattaStatoVacanza(r.stato || "in_attesa"))}${r.motivo ? `<br><em>${escapeHtml(r.motivo)}</em>` : ""}
+          Stato: ${escapeHtml(r.stato || "Inviata")}${r.motivo ? `<br><em>${escapeHtml(r.motivo)}</em>` : ""}
         </div>
       `).join("");
     }
@@ -5409,7 +4802,7 @@ ${descrizione}`)) return;
               <strong>${escapeHtml(r.nome || r.collaboratore_nome || "Collaboratore")}</strong><br>
               <span>${fmtData(r.dal)} - ${fmtData(r.al)}</span>
             </div>
-            <span class="admin-vacanza-stato">${escapeHtml(formattaStatoVacanza(r.stato || "in_attesa"))}</span>
+            <span class="admin-vacanza-stato">${escapeHtml(r.stato || "Inviata")}</span>
           </div>
           ${r.motivo ? `<p>${escapeHtml(r.motivo)}</p>` : '<p class="note">Nessun messaggio.</p>'}
           <p class="note">Ricevuta: ${r.creata ? new Date(r.creata).toLocaleString("it-CH") : "-"}</p>
@@ -5422,69 +4815,20 @@ ${descrizione}`)) return;
       `).join("");
     }
 
-    function formattaStatoVacanza(stato) {
-      const s = String(stato || "").trim().toLowerCase();
-      if (s === "in_attesa" || s === "in attesa" || s === "inviata") return "In attesa";
-      if (s === "approvata") return "Approvata";
-      if (s === "rifiutata") return "Rifiutata";
-      return stato || "In attesa";
-    }
-
-    function statoVacanzaDb(stato) {
-      const s = String(stato || "").trim().toLowerCase();
-      if (s === "approvata") return "approvata";
-      if (s === "rifiutata") return "rifiutata";
-      return "in_attesa";
-    }
-
-    async function adminRichiesteVacanzeAggiornaOnline(richiesta, statoNuovo) {
-      try {
-        if (!richiesta || richiesta.origine !== "online") return false;
-        const client = inizializzaSupabase();
-        const sessione = client ? await supabaseSessioneCorrente() : null;
-        if (!client || !sessione) return false;
-
-        const { error } = await client
-          .from("richieste_vacanze")
-          .update({
-            stato: statoVacanzaDb(statoNuovo),
-            risposta_admin: statoNuovo
-          })
-          .eq("id", richiesta.id);
-
-        if (error) {
-          console.warn("Stato richiesta vacanza non aggiornato online.", error);
-          return false;
-        }
-        return true;
-      } catch (errore) {
-        console.warn("Stato richiesta vacanza non aggiornato online.", errore);
-        return false;
-      }
-    }
-
-    async function adminRichiesteVacanzeImpostaStato(id, statoNuovo) {
+    function adminRichiesteVacanzeImpostaStato(id, statoNuovo) {
       const lista = collabAppCaricaVacanze();
       let richiestaAggiornata = null;
       const aggiornata = lista.map(r => {
         if (r.id !== id) return r;
-        richiestaAggiornata = { ...r, stato: statoVacanzaDb(statoNuovo), letta: true, rispostaData: new Date().toISOString() };
+        richiestaAggiornata = { ...r, stato: statoNuovo, letta: true, rispostaData: new Date().toISOString() };
         return richiestaAggiornata;
       });
-
-      if (richiestaAggiornata) {
-        await adminRichiesteVacanzeAggiornaOnline(richiestaAggiornata, statoNuovo);
-      } else {
-        richiestaAggiornata = { id, origine: "online" };
-        await adminRichiesteVacanzeAggiornaOnline(richiestaAggiornata, statoNuovo);
-      }
-
       collabAppSalvaVacanze(aggiornata);
       if (statoNuovo === "Approvata" && richiestaAggiornata) {
         collabAppAggiungiVacanzaApprovataAlCalendario(richiestaAggiornata);
         alert("Vacanza approvata: i giorni vengono segnati in verde nel calendario/resoconto del collaboratore.");
       }
-      await adminRichiesteVacanzeCaricaOnline();
+      adminRichiesteVacanzeRender();
       collabAppRenderVacanze();
     }
 
@@ -5514,46 +4858,25 @@ ${descrizione}`)) return;
           adminRichiesteVacanzeRender();
           return;
         }
-
-        if (!supabaseProfilo && typeof supabaseCaricaProfilo === "function") {
-          await supabaseCaricaProfilo();
-        }
-
-        const aziendaId = (supabaseProfilo && supabaseProfilo.azienda_id) || SUPABASE_AZIENDA_ID;
-
-        let query = client
-          .from("richieste_vacanze")
-          .select("*")
-          .order("dal", { ascending: false })
-          .limit(80);
-
-        if (aziendaId) {
-          query = query.eq("azienda_id", aziendaId);
-        }
-
-        const { data, error } = await query;
-
+        const { data, error } = await client.from("richieste_vacanze").select("*").order("creata", { ascending: false }).limit(80);
         if (error) {
           console.warn(error);
-          if (stato) stato.textContent = "Non riesco a caricare richieste_vacanze online. Controlla RLS/policy Supabase.";
+          if (stato) stato.textContent = "Tabella richieste_vacanze non trovata o non configurata. Per ora uso le richieste locali.";
           adminRichiesteVacanzeRender();
           return;
         }
-
         const locali = collabAppCaricaVacanze();
         const online = (data || []).map(r => ({
           id: String(r.id || creaId()),
-          nome: r.collaboratore || r.collaboratore_nome || r.nome || "Collaboratore",
-          email_collaboratore: r.email_collaboratore || "",
+          nome: r.collaboratore_nome || r.nome || "Collaboratore",
           dal: r.dal,
           al: r.al,
-          motivo: r.nota || r.motivo || "",
-          stato: r.stato || "in_attesa",
-          letta: String(r.stato || "").toLowerCase() !== "in_attesa",
-          creata: r.created_at || r.creata || r.dal || new Date().toISOString(),
+          motivo: r.motivo || "",
+          stato: r.stato || "Inviata",
+          letta: Boolean(r.letta),
+          creata: r.creata || r.created_at || new Date().toISOString(),
           origine: "online"
         }));
-
         const mappa = new Map();
         [...online, ...locali].forEach(r => mappa.set(r.id || `${r.nome}-${r.dal}-${r.al}-${r.creata}`, r));
         const unite = Array.from(mappa.values()).sort((a, b) => String(b.creata || "").localeCompare(String(a.creata || "")));
@@ -5594,7 +4917,6 @@ ${descrizione}`)) return;
       collabAppInit();
       adminRichiesteVacanzeRender();
       setTimeout(function() { collabAppInit(); adminRichiesteVacanzeRender(); }, 500);
-      setTimeout(function() { if (typeof adminRichiesteVacanzeCaricaOnline === "function") adminRichiesteVacanzeCaricaOnline(); }, 1200);
     });
 
 
@@ -6026,228 +5348,4 @@ ${descrizione}`)) return;
     setTimeout(avvio, 1200);
   });
   setTimeout(avvio, 800);
-})();
-
-
-/* === FIX VACANZE SUPABASE v11 ===
-   Garantisce che le richieste vacanze vengano salvate nella tabella richieste_vacanze
-   e che l'admin le legga da Supabase anche quando la versione precedente usava solo locale.
-*/
-(function(){
-  const TABELLA_VACANZE_WORKHUB = "richieste_vacanze";
-
-  function whSupabaseClient() {
-    try {
-      if (typeof supabaseClient !== "undefined" && supabaseClient) return supabaseClient;
-      if (typeof supabase !== "undefined" && typeof SUPABASE_URL !== "undefined" && typeof SUPABASE_ANON_KEY !== "undefined") {
-        if (!window.__workhubSupabaseClient) {
-          window.__workhubSupabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        }
-        return window.__workhubSupabaseClient;
-      }
-    } catch(e) {
-      console.warn("Supabase client non pronto:", e);
-    }
-    return null;
-  }
-
-  function whCollabNome() {
-    const possibili = [
-      document.getElementById("collabNome"),
-      document.getElementById("collaboratoreNome"),
-      document.getElementById("collabQuickCollaboratore"),
-      document.getElementById("nomeCollaboratore"),
-      document.querySelector("[data-collab-nome]")
-    ];
-    for (const el of possibili) {
-      const v = (el?.value || el?.textContent || "").trim();
-      if (v) return v;
-    }
-    try {
-      if (window.collaboratoreCorrente?.nome_completo) return window.collaboratoreCorrente.nome_completo;
-      if (window.collaboratoreCorrente?.nome) return window.collaboratoreCorrente.nome;
-      if (typeof stato !== "undefined" && stato?.collaboratore) return stato.collaboratore;
-      if (typeof collaboratoreAttivo !== "undefined" && collaboratoreAttivo) return collaboratoreAttivo;
-    } catch(e) {}
-    return "Collaboratore";
-  }
-
-  function whCollabEmail() {
-    const possibili = [
-      document.getElementById("collabEmail"),
-      document.getElementById("emailCollaboratore"),
-      document.querySelector("[data-collab-email]")
-    ];
-    for (const el of possibili) {
-      const v = (el?.value || el?.textContent || "").trim();
-      if (v) return v;
-    }
-    try {
-      if (window.collaboratoreCorrente?.email) return window.collaboratoreCorrente.email;
-    } catch(e) {}
-    return "";
-  }
-
-  function whAziendaId() {
-    try {
-      if (typeof aziendaIdCorrente !== "undefined" && aziendaIdCorrente) return aziendaIdCorrente;
-      if (typeof AZIENDA_ID !== "undefined" && AZIENDA_ID) return AZIENDA_ID;
-      const saved = localStorage.getItem("workhub_azienda_id") || localStorage.getItem("azienda_id");
-      if (saved) return saved;
-    } catch(e) {}
-    return null;
-  }
-
-  async function whInviaRichiestaVacanzaSupabase(payload) {
-    const sb = whSupabaseClient();
-    if (!sb) throw new Error("Supabase non configurato o non caricato.");
-
-    const riga = {
-      azienda_id: payload.azienda_id || whAziendaId(),
-      collaboratore: payload.collaboratore || whCollabNome(),
-      email_collaboratore: payload.email_collaboratore || whCollabEmail() || null,
-      dal: payload.dal,
-      al: payload.al,
-      nota: payload.nota || "",
-      stato: "in_attesa"
-    };
-
-    const { data, error } = await sb
-      .from(TABELLA_VACANZE_WORKHUB)
-      .insert([riga])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data || riga;
-  }
-
-  async function whCaricaRichiesteVacanzeSupabase() {
-    const sb = whSupabaseClient();
-    if (!sb) return [];
-    const { data, error } = await sb
-      .from(TABELLA_VACANZE_WORKHUB)
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Errore lettura richieste vacanze:", error);
-      return [];
-    }
-    return data || [];
-  }
-
-  window.workhubCaricaRichiesteVacanzeAdmin = whCaricaRichiesteVacanzeSupabase;
-
-  // Override compatibile della funzione di invio, usata dal bottone "Chiedere vacanze".
-  window.workhubInviaVacanza = async function(dal, al, nota) {
-    if (!dal || !al) {
-      alert("Inserisci data inizio e data fine vacanza.");
-      return;
-    }
-    try {
-      const salvata = await whInviaRichiestaVacanzaSupabase({ dal, al, nota });
-      try {
-        const locali = JSON.parse(localStorage.getItem("richieste_vacanze") || "[]");
-        locali.unshift(salvata);
-        localStorage.setItem("richieste_vacanze", JSON.stringify(locali));
-      } catch(e) {}
-      alert("Richiesta vacanza inviata all'admin.");
-      if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze();
-      if (typeof renderRichiesteVacanzeAdmin === "function") renderRichiesteVacanzeAdmin();
-    } catch (errore) {
-      console.error("Errore invio vacanza:", errore);
-      alert("La richiesta non e arrivata all'admin. Controlla Supabase/RLS. Errore: " + (errore.message || errore));
-    }
-  };
-
-  // Intercetta submit/click dei bottoni vacanza anche se la vecchia funzione non salva su Supabase.
-  async function whGestisciInvioVacanzaDaForm(event) {
-    const target = event?.target;
-    if (!target) return;
-
-    const testo = ((target.textContent || target.value || "") + "").toLowerCase();
-    const id = (target.id || "").toLowerCase();
-    const isVacanzaBtn = target.matches?.("button, input[type='button'], input[type='submit']") &&
-      (id.includes("vacanza") || testo.includes("vacanza") || testo.includes("richiesta"));
-
-    if (!isVacanzaBtn) return;
-
-    const dal = document.getElementById("collabVacanzaDal")?.value ||
-                document.getElementById("vacanzaDal")?.value ||
-                document.querySelector("input[name='dal']")?.value;
-    const al = document.getElementById("collabVacanzaAl")?.value ||
-               document.getElementById("vacanzaAl")?.value ||
-               document.querySelector("input[name='al']")?.value;
-    const nota = document.getElementById("collabVacanzaNota")?.value ||
-                 document.getElementById("vacanzaNota")?.value ||
-                 document.querySelector("textarea[name='nota']")?.value || "";
-
-    if (dal && al && (id.includes("invia") || testo.includes("invia") || testo.includes("chiedi") || testo.includes("richiedi"))) {
-      event.preventDefault();
-      event.stopPropagation();
-      await window.workhubInviaVacanza(dal, al, nota);
-    }
-  }
-
-  document.addEventListener("click", whGestisciInvioVacanzaDaForm, true);
-
-  // Override render admin se esiste il contenitore standard, altrimenti crea una lista visibile.
-  window.renderRichiesteVacanzeAdmin = async function() {
-    const richieste = await whCaricaRichiesteVacanzeSupabase();
-
-    const contenitore =
-      document.getElementById("richiesteVacanzeAdmin") ||
-      document.getElementById("listaRichiesteVacanze") ||
-      document.getElementById("adminRichiesteVacanze") ||
-      document.querySelector("[data-richieste-vacanze-admin]");
-
-    if (!contenitore) return richieste;
-
-    if (!richieste.length) {
-      contenitore.innerHTML = '<div class="muted">Nessuna richiesta vacanza trovata.</div>';
-      return richieste;
-    }
-
-    contenitore.innerHTML = richieste.map(r => `
-      <div class="vacanza-admin-card" style="border:1px solid #dbe3ef;border-radius:14px;padding:12px;margin:10px 0;background:#fff;">
-        <div style="font-weight:900;color:#0f172a;">${r.collaboratore || "Collaboratore"}</div>
-        <div style="margin-top:4px;color:#334155;"><b>Dal:</b> ${r.dal || "-"} &nbsp; <b>Al:</b> ${r.al || "-"}</div>
-        <div style="margin-top:4px;color:#334155;"><b>Nota:</b> ${r.nota || "-"}</div>
-        <div style="margin-top:4px;color:#334155;"><b>Stato:</b> ${r.stato || "in_attesa"}</div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-          <button onclick="workhubAggiornaStatoVacanza('${r.id}', 'approvata')" style="background:#16a34a;color:#fff;border:0;border-radius:10px;padding:8px 10px;font-weight:800;">Approva</button>
-          <button onclick="workhubAggiornaStatoVacanza('${r.id}', 'rifiutata')" style="background:#dc2626;color:#fff;border:0;border-radius:10px;padding:8px 10px;font-weight:800;">Rifiuta</button>
-        </div>
-      </div>
-    `).join("");
-
-    return richieste;
-  };
-
-  window.workhubAggiornaStatoVacanza = async function(id, stato) {
-    const sb = whSupabaseClient();
-    if (!sb || !id) return;
-    const update = {
-      stato,
-      approvato_da: "admin",
-      approvato_il: new Date().toISOString()
-    };
-    const { error } = await sb.from(TABELLA_VACANZE_WORKHUB).update(update).eq("id", id);
-    if (error) {
-      alert("Errore aggiornamento vacanza: " + error.message);
-      return;
-    }
-    await window.renderRichiesteVacanzeAdmin();
-    try {
-      if (typeof collabQuickRenderMese === "function") collabQuickRenderMese();
-    } catch(e) {}
-  };
-
-  // Caricamento automatico se l'admin apre il pannello.
-  document.addEventListener("DOMContentLoaded", () => {
-    setTimeout(() => {
-      try { window.renderRichiesteVacanzeAdmin(); } catch(e) {}
-    }, 800);
-  });
 })();
