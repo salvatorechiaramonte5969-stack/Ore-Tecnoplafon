@@ -2962,7 +2962,47 @@ ${descrizione}`)) return;
     <div class="box">Differenza ore<strong>${differenzaOre === null ? "-" : differenzaOre.toFixed(2)}</strong></div>
     <div class="box">Assenze<strong>Malattia: ${giorniMalattia}<br>Infortunio: ${giorniInfortunio}<br>Festivi: ${giorniFestivi}<br>Vacanza: ${giorniVacanza}</strong></div>
   </div>
+    const regoleOrarioPeriodo = typeof regoleOrariNelPeriodo === "function"
+      ? regoleOrariNelPeriodo(dal, al)
+      : [];
 
+    const htmlRegoleOrarieScarico = regoleOrarioPeriodo.length
+      ? `
+        <div class="regola-orario-riepilogo">
+          <h2>Regole orarie applicate nel periodo</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Dal</th>
+                <th>Al</th>
+                <th>Inizio lavoro</th>
+                <th>Pausa</th>
+                <th>Fine lavoro</th>
+                <th>Nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${regoleOrarioPeriodo.map(regola => `
+                <tr>
+                  <td>${fmtData(regola.dal)}</td>
+                  <td>${fmtData(regola.al)}</td>
+                  <td><strong>${escapeHtml(regola.inizio || "")}</strong></td>
+                  <td><strong>${escapeHtml(formattaPausaBreve(regola.pausa || "0"))}</strong></td>
+                  <td><strong>${escapeHtml(regola.fine || "")}</strong></td>
+                  <td>${escapeHtml(regola.nota || "")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `
+      : `
+        <div class="regola-orario-riepilogo">
+          <h2>Regole orarie applicate nel periodo</h2>
+          <p><strong>Nessuna regola oraria specifica salvata per questo periodo.</strong></p>
+          <p>Se vuoi mostrare orari diversi nello scarico operaio, inseriscili nel pannello Amministratore → Regole orarie.</p>
+        </div>
+      `;
   <h2>Rapporto ore collaboratore - giorni in orizzontale</h2>
   <p class="muted">I giorni sono in orizzontale; i cantieri sono in verticale. I totali cumulati, trasferte e AVS sono mostrati solo in fondo/alla fine della tabella. Sabato in azzurro, domenica in rosso chiaro.</p>
   ${tabellaGiorniOrizzontali}
