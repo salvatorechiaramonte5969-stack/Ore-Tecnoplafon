@@ -605,8 +605,10 @@
     </div>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-    function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
       const input = document.getElementById("ricercaVeloceCollaboratoreFoglio");
       const select = document.getElementById("filtroCollaboratore");
       if (!input || !select) return;
@@ -656,10 +658,250 @@
         if (typeof ricercaVeloceCollaboratoreFoglio === "function") ricercaVeloceCollaboratoreFoglio(true);
       }, 400);
     });
+  </script>
+  
+  
 
-</script>
-  
-  
+
+  <script>
+    /*
+      FIX richieste vacanza -> azienda_id
+      Questo blocco intercetta gli insert Supabase sulla tabella "richieste_vacanze"
+      e aggiunge automaticamente azienda_id quando manca.
+    */
+    (function () {
+      const TABELLA_RICHIESTE = "richieste_vacanze";
+
+      function isUuid(v) {
+        return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v.trim());
+      }
+
+      function cercaAziendaIdInOggetto(obj, livello = 0) {
+        if (!obj || typeof obj !== "object" || livello > 4) return "";
+        const chiaviPreferite = [
+          "azienda_id", "aziendaId", "id_azienda",
+          "company_id", "companyId",
+          "ditta_id", "dittaId"
+        ];
+
+        for (const k of chiaviPreferite) {
+          if (isUuid(obj[k])) return String(obj[k]).trim();
+        }
+
+        for (const [k, v] of Object.entries(obj)) {
+          const nome = String(k).toLowerCase();
+          if ((nome.includes("azienda") || nome.includes("ditta") || nome.includes("company")) && isUuid(v)) {
+            return String(v).trim();
+          }
+        }
+
+        for (const v of Object.values(obj)) {
+          const trovato = cercaAziendaIdInOggetto(v, livello + 1);
+          if (trovato) return trovato;
+        }
+        return "";
+      }
+
+      function cercaAziendaIdInStorage() {
+        const nomiDiretti = [
+          "azienda_id", "aziendaId", "id_azienda",
+          "workhub_azienda_id", "tecnoplafon_azienda_id",
+          "aziendaCorrenteId", "ditta_id"
+        ];
+
+        for (const storage of [window.localStorage, window.sessionStorage]) {
+          if (!storage) continue;
+
+          for (const nome of nomiDiretti) {
+            const v = storage.getItem(nome);
+            if (isUuid(v)) return v.trim();
+          }
+
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
+            const value = storage.getItem(key);
+            if (!value) continue;
+
+            if ((key || "").toLowerCase().includes("azienda") && isUuid(value)) {
+              return value.trim();
+            }
+
+            try {
+              const obj = JSON.parse(value);
+              const trovato = cercaAziendaIdInOggetto(obj);
+              if (trovato) return trovato;
+            } catch (_) {
+              /* non JSON */
+            }
+          }
+        }
+        return "";
+      }
+
+      function cercaAziendaIdInWindow() {
+        const candidati = [
+          window.azienda_id,
+          window.aziendaId,
+          window.AZIENDA_ID,
+          window.workhubAziendaId,
+          window.tecnoplafonAziendaId,
+          window.aziendaCorrente && window.aziendaCorrente.id,
+          window.dittaCorrente && window.dittaCorrente.id,
+          window.workhubAzienda && window.workhubAzienda.id
+        ];
+
+        for (const v of candidati) {
+          if (isUuid(v)) return String(v).trim();
+        }
+
+        const trovatoWindow = cercaAziendaIdInOggetto({
+          aziendaCorrente: window.aziendaCorrente,
+          dittaCorrente: window.dittaCorrente,
+          workhubAzienda: window.workhubAzienda,
+          statoWorkhub: window.statoWorkhub
+        });
+
+        return trovatoWindow || "";
+      }
+
+      async function cercaAziendaIdDaSupabase(client) {
+        try {
+          if (!client || typeof client.from !== "function") return "";
+
+          const storageId = cercaAziendaIdInStorage();
+          if (storageId) return storageId;
+
+          const windowId = cercaAziendaIdInWindow();
+          if (windowId) return windowId;
+
+          if (client.auth && typeof client.auth.getUser === "function") {
+            const authRes = await client.auth.getUser();
+            const user = authRes && authRes.data && authRes.data.user;
+            const email = user && user.email ? String(user.email).toLowerCase() : "";
+            const metaId = cercaAziendaIdInOggetto(user || {});
+            if (metaId) return metaId;
+
+            if (email) {
+              const tabellePossibili = ["collaboratori", "profili", "utenti", "aziende_utenti"];
+              for (const tabella of tabellePossibili) {
+                try {
+                  const res = await client
+                    .from(tabella)
+                    .select("azienda_id")
+                    .eq("email", email)
+                    .limit(1);
+                  const id = res && res.data && res.data[0] && res.data[0].azienda_id;
+                  if (isUuid(id)) return id.trim();
+                } catch (_) {
+                  /* tabella non esistente o policy */
+                }
+              }
+            }
+          }
+
+          try {
+            const res = await client
+              .from("aziende")
+              .select("id,nome")
+              .ilike("nome", "%Tecnoplafon%")
+              .limit(1);
+            const id = res && res.data && res.data[0] && res.data[0].id;
+            if (isUuid(id)) return id.trim();
+          } catch (_) {
+            /* tabella non esistente o policy */
+          }
+        } catch (err) {
+          console.warn("Ricerca azienda_id non riuscita:", err);
+        }
+        return "";
+      }
+
+      function patchBuilderRichiesteVacanza(builder, client) {
+        if (!builder || builder.__aziendaIdPatchApplicata) return builder;
+
+        return new Proxy(builder, {
+          get(target, prop, receiver) {
+            const originale = Reflect.get(target, prop, receiver);
+
+            if (prop === "insert" && typeof originale === "function") {
+              return async function (righe, opzioni) {
+                const aziendaId = await cercaAziendaIdDaSupabase(client);
+
+                const aggiungi = (riga) => {
+                  if (!riga || typeof riga !== "object") return riga;
+                  if (!riga.azienda_id && aziendaId) {
+                    return { ...riga, azienda_id: aziendaId };
+                  }
+                  return riga;
+                };
+
+                const righeCorrette = Array.isArray(righe) ? righe.map(aggiungi) : aggiungi(righe);
+
+                if (!aziendaId) {
+                  console.warn(
+                    "azienda_id non trovato: la richiesta vacanza potrebbe essere salvata senza azienda_id. " +
+                    "Controlla che l'utente abbia azienda_id nei dati o in Supabase."
+                  );
+                }
+
+                return originale.call(target, righeCorrette, opzioni);
+              };
+            }
+
+            return typeof originale === "function" ? originale.bind(target) : originale;
+          }
+        });
+      }
+
+      function patchClientSupabase(client) {
+        if (!client || client.__aziendaIdPatchApplicata) return client;
+
+        const proxy = new Proxy(client, {
+          get(target, prop, receiver) {
+            const originale = Reflect.get(target, prop, receiver);
+
+            if (prop === "from" && typeof originale === "function") {
+              return function (nomeTabella) {
+                const builder = originale.call(target, nomeTabella);
+                if (String(nomeTabella) === TABELLA_RICHIESTE) {
+                  return patchBuilderRichiesteVacanza(builder, proxy);
+                }
+                return builder;
+              };
+            }
+
+            return typeof originale === "function" ? originale.bind(target) : originale;
+          }
+        });
+
+        Object.defineProperty(proxy, "__aziendaIdPatchApplicata", { value: true });
+        return proxy;
+      }
+
+      function installaPatchCreateClient() {
+        if (!window.supabase || typeof window.supabase.createClient !== "function") {
+          setTimeout(installaPatchCreateClient, 50);
+          return;
+        }
+
+        if (window.supabase.__aziendaIdPatchCreateClient) return;
+
+        const createClientOriginale = window.supabase.createClient.bind(window.supabase);
+        window.supabase.createClient = function (...args) {
+          const client = createClientOriginale(...args);
+          return patchClientSupabase(client);
+        };
+
+        Object.defineProperty(window.supabase, "__aziendaIdPatchCreateClient", { value: true });
+        window.workhubTrovaAziendaId = function () {
+          return cercaAziendaIdInWindow() || cercaAziendaIdInStorage();
+        };
+      }
+
+      installaPatchCreateClient();
+    })();
+  </script>
+
 
   <script src="script.js"></script>
 </body>
