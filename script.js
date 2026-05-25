@@ -2715,7 +2715,7 @@ ${descrizione}`)) return;
 <head>
   <meta charset="utf-8">
   <title>Raccolta ore ${escapeHtml(collaboratore)} ${escapeHtml(dal || "")} ${escapeHtml(al || "")}</title>
-  <title>Raccolta ore ${escapeHtml(collaboratore)} ${escapeHtml(dal || "")} ${escapeHtml(al || "")}</title>
+  
 
   <style>
     body {
