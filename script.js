@@ -5349,3 +5349,239 @@ ${descrizione}`)) return;
   });
   setTimeout(avvio, 800);
 })();
+/* === FIX RICHIESTE VACANZE SUPABASE === */
+(function () {
+  const TABELLA = "richieste_vacanze";
+  const AZIENDA_ID = "21af7afa-cbcb-45b9-9a84-f9f9ad68b7fd";
+
+  function pulito(v) {
+    return String(v == null ? "" : v).trim();
+  }
+
+  function nuovoId() {
+    try {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    } catch (_) {}
+    return "id_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+  }
+
+  function prendiClientSupabase() {
+    try {
+      if (typeof inizializzaSupabase === "function") {
+        const c = inizializzaSupabase();
+        if (c && typeof c.from === "function") return c;
+      }
+    } catch (_) {}
+
+    const possibili = [
+      window.supabaseClient,
+      window.supabaseDb,
+      window.supabaseClientOnline,
+      window.clientSupabase,
+      window.supabaseWorkhub
+    ];
+
+    for (const c of possibili) {
+      if (c && typeof c.from === "function") return c;
+    }
+
+    return null;
+  }
+
+  async function emailCorrente(client) {
+    try {
+      if (window.supabaseUtente && window.supabaseUtente.email) {
+        return String(window.supabaseUtente.email);
+      }
+
+      if (client && client.auth && typeof client.auth.getUser === "function") {
+        const res = await client.auth.getUser();
+        if (res && res.data && res.data.user && res.data.user.email) {
+          return String(res.data.user.email);
+        }
+      }
+    } catch (_) {}
+
+    return "";
+  }
+
+  function normalizzaRichiesta(r) {
+    return {
+      id: String(r.id || nuovoId()),
+      nome: pulito(r.collaboratore || r.collaboratore_nome || r.nome || "Collaboratore"),
+      collaboratore: pulito(r.collaboratore || r.collaboratore_nome || r.nome || "Collaboratore"),
+      email_collaboratore: pulito(r.email_collaboratore || r.email || ""),
+      dal: pulito(r.dal || r.data_dal || r.inizio || ""),
+      al: pulito(r.al || r.data_al || r.fine || ""),
+      motivo: pulito(r.nota || r.motivo || r.messaggio || ""),
+      stato: pulito(r.stato || "in_attesa"),
+      letta: String(r.stato || "").toLowerCase() !== "in_attesa",
+      creata: pulito(r.creata || r.creato_il || r.created_at || r.dal || new Date().toISOString()),
+      origine: "online"
+    };
+  }
+
+  function caricaVacanzeLocaleFix() {
+    if (typeof collabAppCaricaVacanze === "function") {
+      return collabAppCaricaVacanze();
+    }
+
+    try {
+      return JSON.parse(localStorage.getItem("richieste_vacanze") || "[]");
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function salvaVacanzeLocaleFix(lista) {
+    if (typeof collabAppSalvaVacanze === "function") {
+      collabAppSalvaVacanze(lista);
+      return;
+    }
+
+    try {
+      localStorage.setItem("richieste_vacanze", JSON.stringify(lista));
+    } catch (_) {}
+  }
+
+  function unisciOnlineLocale(righeOnline) {
+    const mappa = new Map();
+
+    (righeOnline || []).forEach(r => {
+      const item = normalizzaRichiesta(r);
+      mappa.set(String(item.id), item);
+    });
+
+    caricaVacanzeLocaleFix().forEach(r => {
+      const id = String(r.id || `${r.nome || r.collaboratore}-${r.dal}-${r.al}`);
+      if (!mappa.has(id)) mappa.set(id, r);
+    });
+
+    const lista = Array.from(mappa.values()).sort((a, b) =>
+      String(b.creata || b.dal || "").localeCompare(String(a.creata || a.dal || ""))
+    );
+
+    salvaVacanzeLocaleFix(lista);
+    return lista;
+  }
+
+  window.collabAppSalvaVacanzaOnline = async function (richiesta) {
+    const client = prendiClientSupabase();
+
+    if (!client) {
+      console.warn("Supabase non trovato: salvo solo locale.");
+      return false;
+    }
+
+    try {
+      const email = await emailCorrente(client);
+
+      const payload = {
+        azienda_id: AZIENDA_ID,
+        collaboratore: pulito(richiesta.nome || richiesta.collaboratore || "Collaboratore"),
+        email_collaboratore: email || pulito(richiesta.email_collaboratore || ""),
+        dal: richiesta.dal,
+        al: richiesta.al,
+        nota: pulito(richiesta.motivo || richiesta.nota || ""),
+        stato: "in_attesa"
+      };
+
+      const res = await client
+        .from(TABELLA)
+        .insert(payload)
+        .select("*")
+        .single();
+
+      if (res.error) throw res.error;
+
+      if (res.data) {
+        richiesta.id = res.data.id || richiesta.id;
+        richiesta.origine = "online";
+        richiesta.stato = res.data.stato || "in_attesa";
+      }
+
+      return true;
+    } catch (err) {
+      console.warn("Errore salvataggio Supabase richiesta vacanza:", err);
+      return false;
+    }
+  };
+
+  window.adminRichiesteVacanzeCaricaOnline = async function () {
+    const stato = document.getElementById("adminRichiesteVacanzeStato");
+    const client = prendiClientSupabase();
+
+    if (!client) {
+      if (stato) stato.textContent = "Supabase non trovato. Mostro solo richieste salvate su questo dispositivo.";
+      if (typeof adminRichiesteVacanzeRender === "function") adminRichiesteVacanzeRender();
+      return;
+    }
+
+    try {
+      if (stato) stato.textContent = "Carico richieste vacanze da Supabase...";
+
+      const res = await client
+        .from(TABELLA)
+        .select("*")
+        .order("dal", { ascending: false })
+        .limit(200);
+
+      if (res.error) throw res.error;
+
+      const lista = unisciOnlineLocale(res.data || []);
+
+      if (typeof adminRichiesteVacanzeRender === "function") {
+        adminRichiesteVacanzeRender(lista);
+      }
+
+      if (stato) {
+        stato.textContent = "Richieste caricate da Supabase: " + (res.data || []).length + ".";
+      }
+    } catch (err) {
+      console.warn("Errore caricamento richieste vacanze:", err);
+      if (stato) stato.textContent = "Errore caricamento Supabase: " + (err.message || err);
+      if (typeof adminRichiesteVacanzeRender === "function") adminRichiesteVacanzeRender();
+    }
+  };
+
+  window.adminRichiesteVacanzeImpostaStato = async function (id, statoNuovo) {
+    const lista = caricaVacanzeLocaleFix();
+
+    const aggiornata = lista.map(r => {
+      if (String(r.id) !== String(id)) return r;
+      return {
+        ...r,
+        stato: statoNuovo,
+        letta: true,
+        rispostaData: new Date().toISOString()
+      };
+    });
+
+    salvaVacanzeLocaleFix(aggiornata);
+
+    try {
+      const client = prendiClientSupabase();
+      if (client && id) {
+        await client.from(TABELLA).update({ stato: statoNuovo }).eq("id", id);
+      }
+    } catch (err) {
+      console.warn("Stato richiesta aggiornato solo locale:", err);
+    }
+
+    if (typeof adminRichiesteVacanzeRender === "function") {
+      adminRichiesteVacanzeRender(aggiornata);
+    }
+
+    if (typeof collabAppRenderVacanze === "function") {
+      collabAppRenderVacanze();
+    }
+  };
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(function () {
+      if (typeof adminRichiesteVacanzeCaricaOnline === "function") {
+        adminRichiesteVacanzeCaricaOnline();
+      }
+    }, 1500);
+  });
+})();
