@@ -2715,7 +2715,232 @@ ${descrizione}`)) return;
 <head>
   <meta charset="utf-8">
   <title>Raccolta ore ${escapeHtml(collaboratore)} ${escapeHtml(dal || "")} ${escapeHtml(al || "")}</title>
-  
+  <title>Raccolta ore ${escapeHtml(collaboratore)} ${escapeHtml(dal || "")} ${escapeHtml(al || "")}</title>
+
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111827;
+      margin: 24px;
+      background: #ffffff;
+      font-size: 13px;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin: 0 0 10px;
+    }
+
+    h2 {
+      font-size: 20px;
+      margin: 24px 0 10px;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 6px;
+    }
+
+    .nome-collaboratore {
+      display: inline-block;
+      background: #dbeafe;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .muted {
+      color: #4b5563;
+      margin: 8px 0;
+    }
+
+    .print {
+      text-align: right;
+      margin-bottom: 12px;
+    }
+
+    .print button {
+      background: #111827;
+      color: white;
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 14px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .totali {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .box {
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 10px;
+      background: #f9fafb;
+      font-size: 12px;
+    }
+
+    .box strong {
+      display: block;
+      font-size: 18px;
+      margin-top: 4px;
+    }
+
+    .scroll-x {
+      overflow-x: auto;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+
+    th,
+    td {
+      border: 1px solid #d1d5db;
+      padding: 5px 6px;
+      text-align: center;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #f3f4f6;
+      font-weight: 700;
+    }
+
+    .tabella-orizzontale {
+      min-width: 1100px;
+      margin: 0;
+    }
+
+    .cantiere-col {
+      position: sticky;
+      left: 0;
+      background: #ffffff;
+      text-align: left;
+      font-weight: 700;
+      min-width: 150px;
+      z-index: 2;
+    }
+
+    th.cantiere-col {
+      background: #e5e7eb;
+      z-index: 3;
+    }
+
+    .numero {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .totale,
+    .totali-cumulati td {
+      background: #eef2ff;
+      font-weight: 700;
+    }
+
+    .sabato {
+      background: #e0f2fe !important;
+    }
+
+    .domenica,
+    .festivo {
+      background: #fee2e2 !important;
+    }
+
+    .vacanza {
+      background: #dcfce7 !important;
+      color: #166534;
+      font-weight: 700;
+    }
+
+    .orario-regola {
+      font-size: 10px;
+      color: #374151;
+      background: #f9fafb;
+    }
+
+    .orario-regola.con-orario {
+      background: #fff7ed;
+      color: #9a3412;
+      font-weight: 700;
+    }
+
+    .regola-orario-riepilogo {
+      margin: 8px 0 10px;
+      padding: 8px 10px;
+      border: 1px solid #fed7aa;
+      border-radius: 8px;
+      background: #fff7ed;
+      color: #7c2d12;
+    }
+
+    @media print {
+      body {
+        margin: 8mm;
+        font-size: 10px;
+      }
+
+      .print {
+        display: none;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      h2 {
+        font-size: 15px;
+      }
+
+      .totali {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 5px;
+      }
+
+      .box {
+        padding: 6px;
+      }
+
+      .box strong {
+        font-size: 13px;
+      }
+
+      table {
+        font-size: 9px;
+      }
+
+      th,
+      td {
+        padding: 3px 4px;
+      }
+
+      .scroll-x {
+        overflow: visible;
+        border: 0;
+      }
+
+      .tabella-orizzontale {
+        min-width: 0;
+        width: 100%;
+      }
+
+      .cantiere-col {
+        position: static;
+        min-width: 90px;
+      }
+    }
+  </style>
+
+</head>
 </head>
 <body>
   <div class="print"><button onclick="window.print()">Stampa questa raccolta</button></div>
