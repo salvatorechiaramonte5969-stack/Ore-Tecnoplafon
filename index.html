@@ -11,6 +11,94 @@
   
 
   <link rel="stylesheet" href="style.css">
+
+  <style id="workhub-celle-chiare-foglio-mensile">
+    /* Foglio mensile: campi più larghi e leggibili, senza cambiare i calcoli. */
+    #toolbarFoglioMensile {
+      display: grid !important;
+      grid-template-columns: minmax(280px, 1.35fr) minmax(170px, 0.9fr) minmax(170px, 0.9fr) minmax(190px, 1fr) minmax(230px, 1.2fr) !important;
+      gap: 12px !important;
+      align-items: stretch !important;
+      width: 100% !important;
+      margin-bottom: 16px !important;
+    }
+
+    #toolbarFoglioMensile .ricerca-collaboratore-foglio {
+      width: 100% !important;
+      min-width: 0 !important;
+    }
+
+    /* Nasconde il secondo menu collaboratore: resta nel codice per i calcoli,
+       ma sullo schermo si usa una sola casella chiara di ricerca. */
+    #toolbarFoglioMensile #filtroCollaboratore {
+      display: none !important;
+    }
+
+    #toolbarFoglioMensile input,
+    #toolbarFoglioMensile select,
+    #toolbarFoglioMensile button {
+      width: 100% !important;
+      min-width: 0 !important;
+      height: 58px !important;
+      box-sizing: border-box !important;
+      border-radius: 16px !important;
+      font-size: 19px !important;
+      line-height: 1.2 !important;
+      padding: 0 16px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    }
+
+    #toolbarFoglioMensile input[type="date"] {
+      font-variant-numeric: tabular-nums !important;
+      letter-spacing: 0.5px !important;
+    }
+
+    #toolbarFoglioMensile button {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+      padding-left: 18px !important;
+      padding-right: 18px !important;
+    }
+
+    .card > .summary-box .row3,
+    .card > .summary-box .row {
+      gap: 12px !important;
+    }
+
+    .card > .summary-box input,
+    .card > .summary-box select {
+      min-height: 52px !important;
+      font-size: 18px !important;
+      border-radius: 14px !important;
+      padding: 0 14px !important;
+      box-sizing: border-box !important;
+    }
+
+    @media (max-width: 1150px) {
+      #toolbarFoglioMensile {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+    }
+
+    @media (max-width: 680px) {
+      #toolbarFoglioMensile {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+      }
+
+      #toolbarFoglioMensile input,
+      #toolbarFoglioMensile select,
+      #toolbarFoglioMensile button {
+        height: 54px !important;
+        font-size: 17px !important;
+      }
+    }
+  </style>
+
 </head>
 <body>
 
@@ -210,20 +298,44 @@
                 <button type="button" class="collab-back-btn" onclick="collabAppChiudiSezioni()">← Menu</button>
                 <h3>Chiedere vacanze</h3>
               </div>
-              <p class="note">La richiesta viene salvata e l’amministratore la vede nel suo pannello. Se il database online ha la tabella richieste vacanze, viene inviata anche online. In più puoi aprire l’email già pronta per notificare l’admin.</p>
-              <div class="collab-simple-row">
-                <div>
-                  <label for="collabVacanzaDal">Dal</label>
-                  <input id="collabVacanzaDal" type="date" />
-                </div>
-                <div>
-                  <label for="collabVacanzaAl">Al</label>
-                  <input id="collabVacanzaAl" type="date" />
+              <p class="note">La richiesta viene salvata e l’amministratore la vede nel suo pannello. Puoi chiedere vacanza per giorni interi oppure ore libere in una singola giornata scelta dal calendario.</p>
+
+              <label for="collabTipoRichiestaVacanza">Tipo richiesta</label>
+              <select id="collabTipoRichiestaVacanza" class="workhub-vacanza-select" onchange="workhubAggiornaTipoRichiestaVacanza()">
+                <option value="vacanza">Vacanza / giorno intero</option>
+                <option value="ore_libere">Ore libere nella giornata</option>
+              </select>
+
+              <div id="workhubBoxVacanzaGiorni">
+                <div class="collab-simple-row">
+                  <div>
+                    <label for="collabVacanzaDal">Dal</label>
+                    <input id="collabVacanzaDal" type="date" />
+                  </div>
+                  <div>
+                    <label for="collabVacanzaAl">Al</label>
+                    <input id="collabVacanzaAl" type="date" />
+                  </div>
                 </div>
               </div>
+
+              <div id="workhubBoxOreLibere" class="workhub-ore-libere-box" style="display:none;">
+                <div class="collab-simple-row">
+                  <div>
+                    <label for="collabOreLibereData">Giorno</label>
+                    <input id="collabOreLibereData" type="date" />
+                  </div>
+                  <div>
+                    <label for="collabOreLibereNumero">Ore libere richieste</label>
+                    <input id="collabOreLibereNumero" type="number" min="0.25" max="8.5" step="0.25" placeholder="Es. 2" />
+                  </div>
+                </div>
+                <p class="note">Usa questa opzione quando il collaboratore lavora solo una parte della giornata e chiede alcune ore libere.</p>
+              </div>
+
               <label for="collabVacanzaMotivo">Messaggio</label>
-              <textarea id="collabVacanzaMotivo" placeholder="Es. chiedo vacanza per questi giorni"></textarea>
-              <button type="button" class="collab-save-btn" onclick="collabAppSalvaVacanza()">Invia richiesta vacanza</button>
+              <textarea id="collabVacanzaMotivo" placeholder="Es. chiedo vacanza / ore libere per motivi personali"></textarea>
+              <button type="button" class="collab-save-btn" onclick="collabAppSalvaVacanza()">Invia richiesta</button>
               <button type="button" class="collab-summary-btn" onclick="collabAppApriEmailUltimaVacanza()">✉️ Apri email per admin</button>
               <div id="collabVacanzaEmailNota" class="collab-email-note" style="display:none;"></div>
               <div id="collabVacanzeLista" class="collab-vacanze-lista"></div>
@@ -926,6 +1038,23 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
     #collabHomeScreen.workhub-menu-attivo .collab-home-card {
       display: block !important;
     }
+
+    /* WorkHub: richiesta ore libere nella sezione vacanze */
+    .workhub-vacanza-select,
+    .workhub-ore-libere-box input,
+    #workhubBoxVacanzaGiorni input {
+      width: 100%;
+      min-height: 50px;
+      font-size: 18px;
+      border-radius: 14px;
+    }
+    .workhub-ore-libere-box {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid #dbe3ef;
+      border-radius: 18px;
+      background: #f8fafc;
+    }
   </style>
 
   <script>
@@ -994,6 +1123,120 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
 
       document.addEventListener("DOMContentLoaded", function () {
         setTimeout(mostraMenu, 300);
+      });
+    })();
+  </script>
+
+
+
+  <script>
+    /* WorkHub: aggiunge richiesta ore libere senza cambiare database o calcoli ore */
+    (function () {
+      function testo(id) {
+        const el = document.getElementById(id);
+        return el ? String(el.value || '').trim() : '';
+      }
+
+      function impostaValore(id, valore) {
+        const el = document.getElementById(id);
+        if (el) el.value = valore || '';
+      }
+
+      window.workhubAggiornaTipoRichiestaVacanza = function () {
+        const tipo = testo('collabTipoRichiestaVacanza') || 'vacanza';
+        const boxGiorni = document.getElementById('workhubBoxVacanzaGiorni');
+        const boxOre = document.getElementById('workhubBoxOreLibere');
+        if (boxGiorni) boxGiorni.style.display = tipo === 'ore_libere' ? 'none' : '';
+        if (boxOre) boxOre.style.display = tipo === 'ore_libere' ? '' : 'none';
+
+        if (tipo === 'ore_libere') {
+          const data = testo('collabOreLibereData') || testo('collabVacanzaDal') || new Date().toISOString().slice(0, 10);
+          impostaValore('collabOreLibereData', data);
+        } else {
+          const data = testo('collabVacanzaDal') || testo('collabOreLibereData') || new Date().toISOString().slice(0, 10);
+          impostaValore('collabVacanzaDal', data);
+          if (!testo('collabVacanzaAl')) impostaValore('collabVacanzaAl', data);
+        }
+      };
+
+      function nomeCollaboratoreRichiesta() {
+        if (typeof testoPulito === 'function' && typeof collabQuickNomeUtente === 'function') {
+          return testoPulito(collabQuickNomeUtente() || testo('collabAppNomeInput') || 'Dipendente');
+        }
+        return testo('collabAppNomeInput') || 'Dipendente';
+      }
+
+      const salvaOriginale = window.collabAppSalvaVacanza;
+      window.collabAppSalvaVacanza = async function () {
+        const tipo = testo('collabTipoRichiestaVacanza') || 'vacanza';
+        if (tipo !== 'ore_libere') {
+          if (typeof salvaOriginale === 'function') return salvaOriginale.apply(this, arguments);
+          return;
+        }
+
+        const giorno = testo('collabOreLibereData');
+        const oreLibere = Number(testo('collabOreLibereNumero'));
+        const motivoBase = typeof testoPulito === 'function' ? testoPulito(testo('collabVacanzaMotivo')) : testo('collabVacanzaMotivo');
+
+        if (!giorno) { alert('Seleziona il giorno dal calendario.'); return; }
+        if (!oreLibere || Number.isNaN(oreLibere) || oreLibere <= 0) { alert('Inserisci quante ore libere richiedi.'); return; }
+        if (oreLibere > 8.5) { alert('Le ore libere non possono superare 8.50 ore nella giornata.'); return; }
+
+        const richiesta = {
+          id: typeof creaId === 'function' ? creaId() : ('id_' + Date.now()),
+          nome: nomeCollaboratoreRichiesta(),
+          dal: giorno,
+          al: giorno,
+          tipo_richiesta: 'ore_libere',
+          ore_libere: oreLibere,
+          motivo: 'Richiesta ore libere: ' + oreLibere.toFixed(2) + ' ore nella giornata del ' + (typeof fmtData === 'function' ? fmtData(giorno) : giorno) + (motivoBase ? '. Messaggio: ' + motivoBase : '.'),
+          creata: new Date().toISOString(),
+          stato: 'Inviata',
+          letta: false,
+          origine: 'app'
+        };
+
+        const lista = typeof collabAppCaricaVacanze === 'function' ? collabAppCaricaVacanze() : [];
+        lista.unshift(richiesta);
+        if (typeof collabAppSalvaVacanze === 'function') collabAppSalvaVacanze(lista);
+        if (typeof collabAppSalvaVacanzaOnline === 'function') await collabAppSalvaVacanzaOnline(richiesta);
+
+        localStorage.setItem('workhub_ultima_richiesta_vacanza', JSON.stringify(richiesta));
+        impostaValore('collabOreLibereNumero', '');
+        impostaValore('collabVacanzaMotivo', '');
+
+        if (typeof collabAppRenderVacanze === 'function') collabAppRenderVacanze();
+        if (typeof adminRichiesteVacanzeRender === 'function') adminRichiesteVacanzeRender();
+
+        const nota = document.getElementById('collabVacanzaEmailNota');
+        if (nota) {
+          nota.style.display = 'block';
+          nota.innerHTML = 'Richiesta ore libere salvata. Per notifica email immediata, premi <strong>Apri email per admin</strong>.';
+        }
+        if (confirm('Richiesta ore libere salvata. Vuoi aprire subito l\'email pronta per l\'admin?') && typeof collabAppApriEmailVacanza === 'function') {
+          collabAppApriEmailVacanza(richiesta);
+        }
+      };
+
+      const emailOriginale = window.collabAppTestoEmailVacanza;
+      window.collabAppTestoEmailVacanza = function (richiesta) {
+        if (richiesta && richiesta.tipo_richiesta === 'ore_libere') {
+          return [
+            'Buongiorno,',
+            '',
+            'richiedo ore libere nella giornata: ' + (typeof fmtData === 'function' ? fmtData(richiesta.dal) : richiesta.dal) + '.',
+            'Ore libere richieste: ' + Number(richiesta.ore_libere || 0).toFixed(2),
+            'Collaboratore: ' + (richiesta.nome || ''),
+            richiesta.motivo ? 'Messaggio: ' + richiesta.motivo : 'Messaggio: -',
+            '',
+            'Grazie.'
+          ].join('\n');
+        }
+        return typeof emailOriginale === 'function' ? emailOriginale(richiesta) : '';
+      };
+
+      document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(window.workhubAggiornaTipoRichiestaVacanza, 300);
       });
     })();
   </script>
