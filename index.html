@@ -1306,5 +1306,148 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
     })();
   </script>
 
+  <style>
+    /* Blocco sicurezza accesso: il collaboratore non vede mai la parte Admin */
+    body.vista-collaboratore .solo-admin,
+    body.vista-collaboratore .operai-panel,
+    body.vista-collaboratore #sezioneAmministratore,
+    body.vista-collaboratore #sezioneRichiesteVacanzeAdmin {
+      display: none !important;
+    }
+    .workhub-role-switch.workhub-auto-role {
+      display: none !important;
+    }
+    .workhub-auto-access-note {
+      margin: 10px 0 14px;
+      padding: 12px 14px;
+      border: 1px solid #bfdbfe;
+      border-radius: 16px;
+      background: #eff6ff;
+      color: #1e3a8a;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+  </style>
+
+  <script>
+    /*
+      Sicurezza accesso automatica:
+      - niente scelta manuale Admin/Dipendente per i collaboratori;
+      - il ruolo viene letto dal profilo Supabase;
+      - solo profilo ruolo=admin vede amministrazione;
+      - tutti gli altri restano in area collaboratore.
+    */
+    (function () {
+      function isProfiloAdmin(profilo) {
+        const ruolo = String((profilo && profilo.ruolo) || '').toLowerCase();
+        return ruolo === 'admin' || ruolo === 'amministratore' || ruolo === 'administrator';
+      }
+
+      function applicaRuoloDaProfilo(profilo) {
+        const admin = isProfiloAdmin(profilo);
+        const ruolo = admin ? 'admin' : 'collaboratore';
+        localStorage.setItem('ruolo_utente_corrente', ruolo);
+        localStorage.setItem('ruolo_utente_ore', ruolo);
+        localStorage.setItem('workhub_login_ruolo_visuale', admin ? 'admin' : 'dipendente');
+        document.body.classList.toggle('vista-collaboratore', !admin);
+        if (typeof applicaVistaRuoloSupabase === 'function') applicaVistaRuoloSupabase();
+        const btn = document.getElementById('workhubAccediBtn');
+        if (btn) btn.textContent = '↪ Accedi';
+      }
+
+      function preparaLoginAutomatico() {
+        const switchRuolo = document.querySelector('.workhub-role-switch');
+        if (switchRuolo) switchRuolo.classList.add('workhub-auto-role');
+        const btn = document.getElementById('workhubAccediBtn');
+        if (btn) btn.textContent = '↪ Accedi';
+        const stato = document.getElementById('supabaseStato');
+        if (stato && !document.getElementById('workhubAutoAccessNote')) {
+          const nota = document.createElement('div');
+          nota.id = 'workhubAutoAccessNote';
+          nota.className = 'workhub-auto-access-note';
+          nota.innerHTML = '<strong>Accesso automatico:</strong> l\'admin vede la parte amministratore. Il collaboratore vede solo la sua area e non può entrare in Admin.';
+          stato.insertAdjacentElement('afterend', nota);
+        }
+      }
+
+      window.workhubScegliRuoloLogin = function () {
+        preparaLoginAutomatico();
+        localStorage.setItem('workhub_login_ruolo_visuale', 'automatico');
+        const btn = document.getElementById('workhubAccediBtn');
+        if (btn) btn.textContent = '↪ Accedi';
+      };
+
+      window.supabaseAccedi = async function () {
+        const client = typeof inizializzaSupabase === 'function' ? inizializzaSupabase() : null;
+        if (!client) {
+          alert('Supabase non è caricato. Controlla la connessione internet.');
+          return;
+        }
+        const email = document.getElementById('supabaseEmail')?.value.trim();
+        const password = document.getElementById('supabasePassword')?.value;
+        if (!email || !password) {
+          alert('Inserisci email e password.');
+          return;
+        }
+
+        if (typeof workhubSalvaPreferenzeAccesso === 'function') workhubSalvaPreferenzeAccesso();
+        if (typeof supabaseStato === 'function') supabaseStato('Accesso in corso...');
+
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        if (error) {
+          console.error(error);
+          if (typeof supabaseStato === 'function') supabaseStato('Errore accesso: ' + error.message, true);
+          return;
+        }
+
+        supabaseUtente = data.user;
+        const profilo = typeof supabaseCaricaProfilo === 'function' ? await supabaseCaricaProfilo() : null;
+        if (!profilo) {
+          await client.auth.signOut();
+          supabaseUtente = null;
+          supabaseProfilo = null;
+          localStorage.removeItem('ruolo_utente_corrente');
+          localStorage.removeItem('ruolo_utente_ore');
+          if (typeof supabaseStato === 'function') supabaseStato('Profilo non trovato. Accesso bloccato.', true);
+          return;
+        }
+
+        applicaRuoloDaProfilo(profilo);
+        if (typeof supabaseStato === 'function') {
+          supabaseStato(isProfiloAdmin(profilo) ? 'Accesso Admin riuscito. Carico i dati online...' : 'Accesso collaboratore riuscito. Carico la tua area...');
+        }
+        if (typeof supabaseCaricaDati === 'function') await supabaseCaricaDati();
+      };
+
+      window.workhubAccessoDirettoDaSessione = async function () {
+        const client = typeof inizializzaSupabase === 'function' ? inizializzaSupabase() : null;
+        if (!client) {
+          if (typeof applicaVistaRuoloSupabase === 'function') applicaVistaRuoloSupabase();
+          if (typeof supabaseStato === 'function') supabaseStato('Supabase non caricato. Controlla la connessione internet.', true);
+          return;
+        }
+        const sessione = typeof supabaseSessioneCorrente === 'function' ? await supabaseSessioneCorrente() : null;
+        if (sessione) {
+          if (typeof supabaseStato === 'function') supabaseStato('Accesso già salvato. Carico i dati online...');
+          const profilo = typeof supabaseCaricaProfilo === 'function' ? await supabaseCaricaProfilo() : null;
+          if (profilo) {
+            applicaRuoloDaProfilo(profilo);
+            const emailInput = document.getElementById('supabaseEmail');
+            if (emailInput && sessione.user && sessione.user.email) emailInput.value = sessione.user.email;
+            if (typeof supabaseCaricaDati === 'function') await supabaseCaricaDati();
+          }
+          return;
+        }
+        if (typeof applicaVistaRuoloSupabase === 'function') applicaVistaRuoloSupabase();
+        if (typeof supabaseStato === 'function') supabaseStato('Non collegato. Inserisci email e password.');
+      };
+
+      document.addEventListener('DOMContentLoaded', function () {
+        preparaLoginAutomatico();
+        localStorage.setItem('workhub_login_ruolo_visuale', 'automatico');
+      });
+    })();
+  </script>
+
 </body>
 </html>
