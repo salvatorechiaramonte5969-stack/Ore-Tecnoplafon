@@ -1449,5 +1449,88 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
     })();
   </script>
 
+
+  <style>
+    /* Logout pulito: quando nessuno e' collegato si vede solo il login, non l'area amministratore */
+    body.workhub-logged-out .grid,
+    body.workhub-logged-out #collabQuickPanel,
+    body.workhub-logged-out .solo-admin,
+    body.workhub-logged-out .operai-panel,
+    body.workhub-logged-out #sezioneAmministratore,
+    body.workhub-logged-out #sezioneRichiesteVacanzeAdmin {
+      display: none !important;
+    }
+    body.workhub-logged-out .workhub-login-wrap {
+      display: block !important;
+    }
+  </style>
+
+  <script>
+    /*
+      Logout sicuro:
+      - quando il collaboratore esce non vede pezzi dell'amministratore;
+      - dopo Esci resta visibile solo il login;
+      - il ruolo vecchio viene pulito dal telefono/browser.
+    */
+    (function () {
+      function workhubPulisciRuoloLocale() {
+        try {
+          localStorage.removeItem('ruolo_utente_corrente');
+          localStorage.removeItem('ruolo_utente_ore');
+          localStorage.removeItem('workhub_login_ruolo_visuale');
+          localStorage.removeItem('supabase_profilo_cache');
+        } catch (_) {}
+      }
+
+      function workhubMostraSoloLogin() {
+        document.body.classList.add('workhub-logged-out');
+        document.body.classList.add('vista-collaboratore');
+        document.body.classList.remove('accesso-admin');
+        document.body.classList.remove('vista-admin');
+        const box = document.getElementById('supabaseLoginBox');
+        if (box) box.style.display = '';
+        const stato = document.getElementById('supabaseStato');
+        if (stato) stato.textContent = 'Non collegato. Inserisci email e password.';
+        const password = document.getElementById('supabasePassword');
+        if (password) password.value = '';
+      }
+
+      const applicaRuoloOriginale = window.applicaVistaRuoloSupabase;
+      window.applicaVistaRuoloSupabase = function () {
+        const ruolo = String(localStorage.getItem('ruolo_utente_ore') || localStorage.getItem('ruolo_utente_corrente') || '').toLowerCase();
+        if (!ruolo) {
+          workhubMostraSoloLogin();
+          return;
+        }
+        document.body.classList.remove('workhub-logged-out');
+        if (typeof applicaRuoloOriginale === 'function') applicaRuoloOriginale.apply(this, arguments);
+      };
+
+      const supabaseEsciOriginale = window.supabaseEsci;
+      window.supabaseEsci = async function () {
+        try {
+          const client = typeof inizializzaSupabase === 'function' ? inizializzaSupabase() : null;
+          if (client && client.auth && typeof client.auth.signOut === 'function') {
+            await client.auth.signOut();
+          } else if (typeof supabaseEsciOriginale === 'function') {
+            await supabaseEsciOriginale.apply(this, arguments);
+          }
+        } catch (errore) {
+          console.warn('Uscita Supabase non completata, pulisco comunque la vista locale.', errore);
+        }
+
+        try { window.supabaseUtente = null; } catch (_) {}
+        try { window.supabaseProfilo = null; } catch (_) {}
+        workhubPulisciRuoloLocale();
+        workhubMostraSoloLogin();
+      };
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const ruolo = String(localStorage.getItem('ruolo_utente_ore') || localStorage.getItem('ruolo_utente_corrente') || '').toLowerCase();
+        if (!ruolo) workhubMostraSoloLogin();
+      });
+    })();
+  </script>
+
 </body>
 </html>
