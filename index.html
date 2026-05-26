@@ -300,8 +300,16 @@
               </div>
               <p class="note">La richiesta viene salvata e l’amministratore la vede nel suo pannello. Puoi chiedere vacanza per giorni interi oppure ore libere in una singola giornata scelta dal calendario.</p>
 
-              <label for="collabTipoRichiestaVacanza">Tipo richiesta</label>
-              <select id="collabTipoRichiestaVacanza" class="workhub-vacanza-select" onchange="workhubAggiornaTipoRichiestaVacanza()">
+              <label>Tipo richiesta</label>
+              <div class="workhub-vacanza-tabs" role="group" aria-label="Tipo richiesta vacanza">
+                <button type="button" id="workhubTipoBtnVacanza" class="workhub-vacanza-tab attiva" onclick="workhubScegliTipoRichiestaVacanza('vacanza')">
+                  🌴 Vacanza / giorno intero
+                </button>
+                <button type="button" id="workhubTipoBtnOreLibere" class="workhub-vacanza-tab" onclick="workhubScegliTipoRichiestaVacanza('ore_libere')">
+                  🕒 Ore libere nella giornata
+                </button>
+              </div>
+              <select id="collabTipoRichiestaVacanza" class="workhub-vacanza-select workhub-hidden-select" onchange="workhubAggiornaTipoRichiestaVacanza()" aria-hidden="true" tabindex="-1">
                 <option value="vacanza">Vacanza / giorno intero</option>
                 <option value="ore_libere">Ore libere nella giornata</option>
               </select>
@@ -1129,6 +1137,53 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
 
 
 
+
+
+  <style>
+    .workhub-vacanza-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 8px 0 14px;
+    }
+    .workhub-vacanza-tab {
+      appearance: none;
+      border: 2px solid #d8e2f1;
+      background: #ffffff;
+      color: #1f2937;
+      border-radius: 18px;
+      padding: 16px 14px;
+      font-size: 18px;
+      font-weight: 800;
+      text-align: center;
+      min-height: 64px;
+      cursor: pointer;
+    }
+    .workhub-vacanza-tab.attiva {
+      border-color: #0d6efd;
+      background: #eaf3ff;
+      color: #0b5ed7;
+      box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.12);
+    }
+    .workhub-hidden-select {
+      position: absolute !important;
+      left: -9999px !important;
+      width: 1px !important;
+      height: 1px !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    @media (max-width: 700px) {
+      .workhub-vacanza-tabs {
+        grid-template-columns: 1fr;
+      }
+      .workhub-vacanza-tab {
+        font-size: 17px;
+        min-height: 58px;
+      }
+    }
+  </style>
+
   <script>
     /* WorkHub: aggiunge richiesta ore libere senza cambiare database o calcoli ore */
     (function () {
@@ -1142,10 +1197,20 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
         if (el) el.value = valore || '';
       }
 
+      window.workhubScegliTipoRichiestaVacanza = function (tipo) {
+        const select = document.getElementById('collabTipoRichiestaVacanza');
+        if (select) select.value = tipo === 'ore_libere' ? 'ore_libere' : 'vacanza';
+        window.workhubAggiornaTipoRichiestaVacanza();
+      };
+
       window.workhubAggiornaTipoRichiestaVacanza = function () {
         const tipo = testo('collabTipoRichiestaVacanza') || 'vacanza';
         const boxGiorni = document.getElementById('workhubBoxVacanzaGiorni');
         const boxOre = document.getElementById('workhubBoxOreLibere');
+        const btnVacanza = document.getElementById('workhubTipoBtnVacanza');
+        const btnOre = document.getElementById('workhubTipoBtnOreLibere');
+        if (btnVacanza) btnVacanza.classList.toggle('attiva', tipo !== 'ore_libere');
+        if (btnOre) btnOre.classList.toggle('attiva', tipo === 'ore_libere');
         if (boxGiorni) boxGiorni.style.display = tipo === 'ore_libere' ? 'none' : '';
         if (boxOre) boxOre.style.display = tipo === 'ore_libere' ? '' : 'none';
 
