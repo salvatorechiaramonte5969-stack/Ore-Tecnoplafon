@@ -5810,3 +5810,387 @@ ${descrizione}`)) return;
     }, 1500);
   });
 })();
+
+/* ==========================================================
+   FIX DEFINITIVO MODIFICA ORE COLLABORATORE -> ADMIN
+   - La modifica sostituisce la stessa riga, non crea una nuova riga.
+   - Aggiorna prima Supabase con UPDATE verificato.
+   - Solo dopo aggiorna il locale, così l'admin ricarica il dato corretto.
+   ========================================================== */
+(function () {
+  let tpEditId = null;
+  let tpEditOriginale = null;
+  let tpPatchInstallata = false;
+
+  function tpNorm(v) {
+    return String(v == null ? "" : v).trim().replace(/\s+/g, " ");
+  }
+
+  function tpNomeCorrente() {
+    try {
+      return tpNorm(collabQuickNomeUtente());
+    } catch (_) {
+      return tpNorm(document.getElementById("collaboratore") && document.getElementById("collaboratore").value) || "Dipendente";
+    }
+  }
+
+  function tpDataCorrente() {
+    return dataIsoOggi();
+  }
+
+  function tpRigheOggi() {
+    const nome = tpNomeCorrente().toLowerCase();
+    const data = tpDataCorrente();
+    return (Array.isArray(ore) ? ore : [])
+      .filter(r => tpNorm(r.collaboratore).toLowerCase() === nome && String(r.data || "") === data)
+      .sort((a, b) => String(a.cantiere || "").localeCompare(String(b.cantiere || "")) || String(a.lavoro || "").localeCompare(String(b.lavoro || "")));
+  }
+
+  function tpMessaggio(testo, tipo) {
+    let box = document.getElementById("collabQuickEditMsg");
+    const form = document.getElementById("collabQuickForm");
+    if (!box && form) {
+      box = document.createElement("div");
+      box.id = "collabQuickEditMsg";
+      form.insertAdjacentElement("afterend", box);
+    }
+    if (!box) return;
+    box.style.margin = "14px 0";
+    box.style.padding = "14px";
+    box.style.borderRadius = "14px";
+    box.style.fontWeight = "700";
+    if (tipo === "ok") {
+      box.style.background = "#ecfdf3";
+      box.style.border = "1px solid #22c55e";
+      box.style.color = "#14532d";
+    } else if (tipo === "errore") {
+      box.style.background = "#fef2f2";
+      box.style.border = "1px solid #fca5a5";
+      box.style.color = "#7f1d1d";
+    } else {
+      box.style.background = "#eff6ff";
+      box.style.border = "1px solid #93c5fd";
+      box.style.color = "#1e3a8a";
+    }
+    box.textContent = testo || "";
+    box.style.display = testo ? "block" : "none";
+  }
+
+  function tpBottoneSalva() {
+    return document.querySelector('#collabQuickForm button[onclick*="collabQuickSalva"]');
+  }
+
+  function tpAggiornaBottone() {
+    const btn = tpBottoneSalva();
+    if (!btn) return;
+    if (tpEditId) {
+      btn.textContent = "Aggiorna correzione";
+      btn.style.background = "#16a34a";
+      btn.setAttribute("data-tp-edit", "1");
+    } else {
+      btn.textContent = "Salva ore";
+      btn.style.background = "";
+      btn.removeAttribute("data-tp-edit");
+    }
+  }
+
+  function tpAssicuraPannello() {
+    const form = document.getElementById("collabQuickForm");
+    if (!form) return null;
+    let panel = document.getElementById("collabQuickEditPanel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "collabQuickEditPanel";
+      panel.className = "collab-simple-card";
+      panel.style.marginTop = "18px";
+      panel.innerHTML = '<h3 style="margin-top:0;">Modifica ore inserite</h3><p class="note">Scegli una riga già salvata, correggi i campi sopra e premi <strong>Aggiorna correzione</strong>. La modifica aggiorna anche l\'admin.</p><div id="collabQuickEditList"></div>';
+      form.insertAdjacentElement("afterend", panel);
+    }
+    return panel;
+  }
+
+  function tpRenderListaModifica() {
+    const panel = tpAssicuraPannello();
+    if (!panel) return;
+    const list = document.getElementById("collabQuickEditList");
+    if (!list) return;
+    const righe = tpRigheOggi();
+    if (!righe.length) {
+      list.innerHTML = '<p class="note">Nessuna ora da modificare per oggi.</p>';
+      tpAggiornaBottone();
+      return;
+    }
+    list.innerHTML = righe.map(r => {
+      const id = escapeAttribute(r.id || "");
+      const attivo = tpEditId && String(tpEditId) === String(r.id);
+      return `
+        <div class="collab-today-item" style="display:block; margin:12px 0; padding:14px; border:1px solid ${attivo ? '#16a34a' : '#d1d5db'}; border-radius:16px; background:${attivo ? '#ecfdf3' : '#fff'};">
+          <div style="font-size:18px; font-weight:800; margin-bottom:4px;">${escapeHtml(r.cantiere || '')} - ${Number(r.totaleOre || 0).toFixed(2)} ore</div>
+          <div>Lavoro: ${escapeHtml(r.lavoro || '')}</div>
+          <div>Pausa: ${Number(r.pausa || 0).toFixed(2)} ore</div>
+          ${r.nota ? `<div>Nota: ${escapeHtml(r.nota || '')}</div>` : ''}
+          <button type="button" class="collab-save-btn" style="margin-top:12px;" data-id="${id}" onclick="tpCollabModificaRiga(this.dataset.id)">Modifica</button>
+          <button type="button" class="collab-summary-btn" style="margin-top:8px;" data-id="${id}" onclick="tpCollabEliminaRiga(this.dataset.id)">Elimina</button>
+        </div>
+      `;
+    }).join("");
+    tpAggiornaBottone();
+  }
+
+  window.tpCollabModificaRiga = function (id) {
+    const r = (Array.isArray(ore) ? ore : []).find(x => String(x.id) === String(id));
+    if (!r) {
+      tpMessaggio("Non ho trovato la riga originale. Ricarica i dati e premi di nuovo Modifica sulla riga corretta.", "errore");
+      return;
+    }
+    tpEditId = r.id;
+    tpEditOriginale = { ...r };
+    const cantiere = document.getElementById("collabQuickCantiere");
+    const lavoro = document.getElementById("collabQuickLavoro");
+    const oreInput = document.getElementById("collabQuickOre");
+    const pausa = document.getElementById("collabQuickPausa");
+    const nota = document.getElementById("collabQuickNota");
+    if (cantiere) cantiere.value = r.cantiere || "";
+    if (lavoro) lavoro.value = r.lavoro || "";
+    if (oreInput) oreInput.value = Number(r.totaleOre || 0).toString();
+    if (pausa) pausa.value = Number(r.pausa || 0).toString();
+    if (nota) nota.value = r.nota || "";
+    tpAggiornaBottone();
+    tpRenderListaModifica();
+    tpMessaggio("Modalità modifica attiva: cambia i dati sopra e premi Aggiorna correzione.", "info");
+    document.getElementById("collabQuickCantiere")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  window.tpCollabAnnullaModifica = function () {
+    tpEditId = null;
+    tpEditOriginale = null;
+    ["collabQuickOre", "collabQuickNota"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    const pausa = document.getElementById("collabQuickPausa");
+    if (pausa) pausa.value = "0";
+    tpAggiornaBottone();
+    tpRenderListaModifica();
+    tpMessaggio("", "info");
+  };
+
+  async function tpAggiornaRigaOreOnline(riga) {
+    const client = inizializzaSupabase();
+    if (!client || !supabaseUtente || !riga || !riga.id) {
+      return { ok: false, messaggio: "Non collegato online o id riga mancante." };
+    }
+
+    try {
+      const collaboratoreId = await supabaseAssicuraCollaboratore(riga.collaboratore || "");
+      const cantiereId = await supabaseAssicuraVoce("cantieri", riga.cantiere, { km: Number(riga.km || 0), zona: zonaTrasferta(riga.cantiere) || riga.cantiere });
+      const lavorazioneId = riga.lavoro ? await supabaseAssicuraVoce("lavorazioni", riga.lavoro) : null;
+      const km = Number(riga.km || 0);
+      const payload = {
+        azienda_id: SUPABASE_AZIENDA_ID,
+        collaboratore_id: collaboratoreId,
+        collaboratore_nome: riga.collaboratore || "",
+        data: riga.data,
+        cantiere: riga.cantiere || "",
+        cantiere_id: cantiereId,
+        inizio: riga.inizio || null,
+        fine: riga.fine || null,
+        pausa: Number(riga.pausa || 0),
+        ore_manuali: riga.oreManuali === null || riga.oreManuali === undefined ? null : Number(riga.oreManuali),
+        totale_ore: Number(riga.totaleOre || 0),
+        lavoro: riga.lavoro || "",
+        nota: riga.nota || "",
+        lavorazione_id: lavorazioneId,
+        km,
+        importo_trasferta: fasciaKm(km).importo,
+        avs: km <= 10 ? "Sì" : "No",
+        modificato_il: new Date().toISOString()
+      };
+
+      supabaseStato("Aggiorno la correzione online...");
+      const upd = await client
+        .from("ore")
+        .update(payload)
+        .eq("id", riga.id)
+        .select("id, totale_ore, cantiere, lavoro")
+        .maybeSingle();
+
+      if (upd.error) {
+        return { ok: false, messaggio: upd.error.message || String(upd.error) };
+      }
+      if (!upd.data || !upd.data.id) {
+        return { ok: false, messaggio: "Supabase non ha aggiornato nessuna riga. Probabile permesso UPDATE/RLS mancante per il collaboratore." };
+      }
+
+      const check = await client
+        .from("ore")
+        .select("id, totale_ore, cantiere, lavoro")
+        .eq("id", riga.id)
+        .maybeSingle();
+
+      if (check.error) {
+        return { ok: false, messaggio: "Aggiornata, ma verifica non riuscita: " + check.error.message };
+      }
+      const oreServer = Number(check.data && check.data.totale_ore || 0);
+      if (Math.abs(oreServer - Number(riga.totaleOre || 0)) > 0.01) {
+        return { ok: false, messaggio: "La verifica online mostra ancora " + oreServer.toFixed(2) + " ore. Controllare permessi Supabase." };
+      }
+
+      supabaseStato("Correzione salvata anche online.");
+      return { ok: true };
+    } catch (err) {
+      console.error("Errore aggiornamento correzione online", err);
+      return { ok: false, messaggio: err && err.message ? err.message : String(err) };
+    }
+  }
+
+  async function tpCollabAggiornaCorrezione() {
+    if (!tpEditId) {
+      tpMessaggio("Prima premi Modifica sulla riga che vuoi correggere.", "errore");
+      return;
+    }
+    const originale = (Array.isArray(ore) ? ore : []).find(x => String(x.id) === String(tpEditId)) || tpEditOriginale;
+    if (!originale) {
+      tpMessaggio("Non ho trovato la riga originale da sostituire. Ricarica e riprova.", "errore");
+      return;
+    }
+
+    const cantiere = tpNorm(document.getElementById("collabQuickCantiere")?.value || "");
+    const lavoro = tpNorm(document.getElementById("collabQuickLavoro")?.value || "");
+    const oreNuove = Number(document.getElementById("collabQuickOre")?.value || 0);
+    const pausaNuova = Number(document.getElementById("collabQuickPausa")?.value || 0);
+    const nota = document.getElementById("collabQuickNota")?.value || "";
+    if (!cantiere) { tpMessaggio("Scegli il cantiere.", "errore"); return; }
+    if (!lavoro) { tpMessaggio("Scegli la tipologia di lavoro.", "errore"); return; }
+    if (!oreNuove || oreNuove <= 0) { tpMessaggio("Inserisci le ore corrette.", "errore"); return; }
+
+    const rigaAggiornata = {
+      ...originale,
+      id: originale.id,
+      collaboratore: originale.collaboratore || tpNomeCorrente(),
+      data: originale.data || tpDataCorrente(),
+      cantiere,
+      lavoro,
+      pausa: pausaNuova,
+      oreManuali: oreNuove,
+      totaleOre: oreNuove,
+      nota,
+      inizio: originale.inizio || "07:30",
+      fine: originale.fine || "17:00",
+      km: Number((vociMenu.cantieriKm && vociMenu.cantieriKm[cantiere]) || originale.km || 0),
+      importoTrasferta: fasciaKm(Number((vociMenu.cantieriKm && vociMenu.cantieriKm[cantiere]) || originale.km || 0)).importo,
+      avs: Number((vociMenu.cantieriKm && vociMenu.cantieriKm[cantiere]) || originale.km || 0) <= 10 ? "Sì" : "No",
+      modificatoIl: new Date().toISOString()
+    };
+
+    if (!(await collaboratoreRispettaLimiteOreGiornoOnline(rigaAggiornata.collaboratore, rigaAggiornata.data, rigaAggiornata.totaleOre, rigaAggiornata.id))) {
+      return;
+    }
+
+    if (supabaseUtente) {
+      const online = await tpAggiornaRigaOreOnline(rigaAggiornata);
+      if (!online.ok) {
+        tpMessaggio("Correzione NON salvata online: " + online.messaggio, "errore");
+        alert("La modifica non è arrivata all'admin perché Supabase non ha aggiornato la riga.\n\n" + online.messaggio + "\n\nServe permesso UPDATE sulla tabella ore per il collaboratore, oppure modifica da admin.");
+        return;
+      }
+    }
+
+    ore = (Array.isArray(ore) ? ore : []).map(x => String(x.id) === String(rigaAggiornata.id) ? rigaAggiornata : x);
+    salvaStorage();
+    tpEditId = null;
+    tpEditOriginale = null;
+    tpAggiornaBottone();
+    ["collabQuickOre", "collabQuickNota"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+    const pausa = document.getElementById("collabQuickPausa");
+    if (pausa) pausa.value = "0";
+
+    if (supabaseUtente) {
+      await supabaseCaricaDati();
+    } else {
+      renderizza();
+    }
+    collabQuickAggiornaScelte();
+    collabQuickRenderOggi();
+    tpRenderListaModifica();
+    tpMessaggio("Correzione salvata online: l'admin vedrà la riga aggiornata.", "ok");
+  }
+
+  window.tpCollabEliminaRiga = async function (id) {
+    const r = (Array.isArray(ore) ? ore : []).find(x => String(x.id) === String(id));
+    if (!r) return;
+    if (!confirm("Eliminare questa riga di ore?\n\n" + (r.cantiere || "") + " - " + Number(r.totaleOre || 0).toFixed(2) + " ore")) return;
+
+    if (supabaseUtente) {
+      const client = inizializzaSupabase();
+      const res = await client.from("ore").delete().eq("id", id).select("id");
+      if (res.error || !res.data || !res.data.length) {
+        const msg = res.error ? res.error.message : "Nessuna riga eliminata online. Probabile permesso DELETE/RLS mancante.";
+        tpMessaggio("Eliminazione NON salvata online: " + msg, "errore");
+        alert("Non posso eliminare la riga online.\n\n" + msg);
+        return;
+      }
+    }
+
+    ore = (Array.isArray(ore) ? ore : []).filter(x => String(x.id) !== String(id));
+    salvaStorage();
+    if (supabaseUtente) await supabaseCaricaDati();
+    else renderizza();
+    tpRenderListaModifica();
+    collabQuickRenderOggi();
+    tpMessaggio("Riga eliminata anche online.", "ok");
+  };
+
+  const tpCollabQuickSalvaOriginale = collabQuickSalva;
+  collabQuickSalva = window.collabQuickSalva = async function () {
+    if (tpEditId) {
+      await tpCollabAggiornaCorrezione();
+      return;
+    }
+    await tpCollabQuickSalvaOriginale();
+    tpRenderListaModifica();
+  };
+
+  const tpRenderOggiOriginale = collabQuickRenderOggi;
+  collabQuickRenderOggi = window.collabQuickRenderOggi = function () {
+    tpRenderOggiOriginale();
+    tpRenderListaModifica();
+  };
+
+  const tpAggiornaScelteOriginale = collabQuickAggiornaScelte;
+  collabQuickAggiornaScelte = window.collabQuickAggiornaScelte = function () {
+    tpAggiornaScelteOriginale();
+    tpAssicuraPannello();
+    tpAggiornaBottone();
+  };
+
+  function tpInstallaPatch() {
+    if (tpPatchInstallata) return;
+    tpPatchInstallata = true;
+    tpAssicuraPannello();
+    tpAggiornaBottone();
+    tpRenderListaModifica();
+    const form = document.getElementById("collabQuickForm");
+    if (form && !document.getElementById("tpAnnullaModificaBtn")) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.id = "tpAnnullaModificaBtn";
+      btn.className = "collab-summary-btn";
+      btn.textContent = "Annulla modifica";
+      btn.style.marginTop = "8px";
+      btn.onclick = window.tpCollabAnnullaModifica;
+      const save = tpBottoneSalva();
+      if (save) save.insertAdjacentElement("afterend", btn);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(tpInstallaPatch, 600);
+    setTimeout(tpRenderListaModifica, 1200);
+  });
+
+  window.tpCollabForzaRefreshModifica = function () {
+    tpInstallaPatch();
+    tpRenderListaModifica();
+  };
+})();
