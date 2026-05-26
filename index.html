@@ -903,5 +903,100 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
     })();
   </script>
 
+
+
+  <style>
+    /* WorkHub: schermate collaboratore senza scroll automatico */
+    #collabHomeScreen.workhub-sezione-aperta .collab-home-card {
+      display: none !important;
+    }
+    #collabHomeScreen.workhub-sezione-aperta {
+      display: block !important;
+    }
+    #collabHomeScreen.workhub-sezione-aperta .collab-app-view.workhub-view-attiva {
+      display: block !important;
+      margin-top: 0 !important;
+    }
+    #collabHomeScreen.workhub-sezione-aperta .collab-app-view:not(.workhub-view-attiva) {
+      display: none !important;
+    }
+    #collabHomeScreen.workhub-menu-attivo .collab-app-view {
+      display: none !important;
+    }
+    #collabHomeScreen.workhub-menu-attivo .collab-home-card {
+      display: block !important;
+    }
+  </style>
+
+  <script>
+    /*
+      WorkHub: apre Ore / Resoconto / Vacanze / Stampa come schermate separate.
+      Non modifica salvataggi, database, Supabase o calcoli: cambia solo la visualizzazione.
+    */
+    (function () {
+      function idSezione(tipo) {
+        return {
+          ore: "collabViewOre",
+          mese: "collabViewMese",
+          vacanze: "collabViewVacanze",
+          stampa: "collabViewStampa"
+        }[tipo] || "";
+      }
+
+      function mostraSoloSezione(tipo) {
+        const home = document.getElementById("collabHomeScreen");
+        const id = idSezione(tipo);
+        const sezione = id ? document.getElementById(id) : null;
+        if (!home || !sezione) return false;
+
+        home.classList.remove("workhub-menu-attivo");
+        home.classList.add("workhub-sezione-aperta");
+
+        home.querySelectorAll(".collab-app-view").forEach(view => {
+          view.classList.remove("workhub-view-attiva");
+          view.style.display = "none";
+        });
+
+        sezione.classList.add("workhub-view-attiva");
+        sezione.style.display = "block";
+        return true;
+      }
+
+      function mostraMenu() {
+        const home = document.getElementById("collabHomeScreen");
+        if (!home) return false;
+
+        home.classList.remove("workhub-sezione-aperta");
+        home.classList.add("workhub-menu-attivo");
+
+        home.querySelectorAll(".collab-app-view").forEach(view => {
+          view.classList.remove("workhub-view-attiva");
+          view.style.display = "none";
+        });
+        return true;
+      }
+
+      const originaleMostraSezione = window.collabAppMostraSezione;
+      window.collabAppMostraSezione = function (tipo) {
+        if (typeof originaleMostraSezione === "function") {
+          try { originaleMostraSezione(tipo); } catch (errore) { console.warn(errore); }
+        }
+        mostraSoloSezione(tipo);
+      };
+
+      const originaleChiudiSezioni = window.collabAppChiudiSezioni;
+      window.collabAppChiudiSezioni = function () {
+        if (typeof originaleChiudiSezioni === "function") {
+          try { originaleChiudiSezioni(); } catch (errore) { console.warn(errore); }
+        }
+        mostraMenu();
+      };
+
+      document.addEventListener("DOMContentLoaded", function () {
+        setTimeout(mostraMenu, 300);
+      });
+    })();
+  </script>
+
 </body>
 </html>
