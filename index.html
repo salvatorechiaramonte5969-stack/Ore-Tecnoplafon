@@ -169,7 +169,6 @@
           <button type="button" onclick="supabaseEsci()">Esci</button>
         </div>
 
-        <p class="workhub-lock-note">🔒 Accesso completo alle funzionalità del gestionale</p>
       </section>
     </div>
 
@@ -2173,6 +2172,115 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
       setTimeout(rimuoviIconeLoginDefinitivo, 100);
       setTimeout(rimuoviIconeLoginDefinitivo, 500);
       setTimeout(rimuoviIconeLoginDefinitivo, 1500);
+    })();
+  </script>
+
+
+  <style id="workhub-online-fix-icone-login-finale">
+    /* FIX ONLINE FINALE: elimina ogni icona nella schermata login/app collaboratore. */
+    #supabaseLoginBox .workhub-icon,
+    #supabaseLoginBox .workhub-eye,
+    #supabaseLoginBox .workhub-lock-note,
+    #supabaseLoginBox [class*="icon"],
+    #supabaseLoginBox [class*="Icon"],
+    #supabaseLoginBox [aria-label*="password" i],
+    #supabaseLoginBox [title*="password" i],
+    #supabaseLoginBox button.workhub-eye {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: 0 !important;
+      position: absolute !important;
+      left: -99999px !important;
+      top: -99999px !important;
+      overflow: hidden !important;
+    }
+
+    #supabaseLoginBox .workhub-input-wrap,
+    #supabaseLoginBox .workhub-field {
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      overflow: visible !important;
+    }
+
+    #supabaseLoginBox .workhub-input-wrap::before,
+    #supabaseLoginBox .workhub-input-wrap::after,
+    #supabaseLoginBox .workhub-field::before,
+    #supabaseLoginBox .workhub-field::after,
+    #supabaseLoginBox label::before,
+    #supabaseLoginBox label::after {
+      content: "" !important;
+      display: none !important;
+      visibility: hidden !important;
+    }
+
+    #supabaseLoginBox input#supabaseEmail,
+    #supabaseLoginBox input#supabasePassword {
+      -webkit-appearance: none !important;
+      appearance: none !important;
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: 64px !important;
+      min-height: 64px !important;
+      padding: 0 18px !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      font-size: 20px !important;
+      line-height: 64px !important;
+      text-indent: 0 !important;
+      background-image: none !important;
+      background-position: left top !important;
+      background-repeat: no-repeat !important;
+    }
+
+    #supabaseLoginBox input#supabaseEmail::-webkit-contacts-auto-fill-button,
+    #supabaseLoginBox input#supabaseEmail::-webkit-credentials-auto-fill-button,
+    #supabaseLoginBox input#supabasePassword::-webkit-credentials-auto-fill-button,
+    #supabaseLoginBox input#supabasePassword::-webkit-caps-lock-indicator,
+    #supabaseLoginBox input#supabasePassword::-ms-reveal,
+    #supabaseLoginBox input#supabasePassword::-ms-clear {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+  </style>
+
+  <script id="workhub-online-rimuovi-icone-login-finale">
+    /* Rimuove dal DOM le icone del login anche se il file online o il CSS vecchio le reinserisce. */
+    (function () {
+      function puliziaFinaleIconeLogin() {
+        var box = document.getElementById('supabaseLoginBox');
+        if (!box) return;
+
+        box.querySelectorAll('.workhub-icon, .workhub-eye, .workhub-lock-note, [class*="icon"], [class*="Icon"]').forEach(function (el) {
+          try { el.remove(); } catch (_) { el.style.display = 'none'; }
+        });
+
+        ['supabaseEmail', 'supabasePassword'].forEach(function (id) {
+          var input = document.getElementById(id);
+          if (!input) return;
+          input.style.paddingLeft = '18px';
+          input.style.paddingRight = '18px';
+          input.style.backgroundImage = 'none';
+          input.style.textIndent = '0';
+          input.style.width = '100%';
+          input.style.height = '64px';
+        });
+      }
+
+      puliziaFinaleIconeLogin();
+      document.addEventListener('DOMContentLoaded', puliziaFinaleIconeLogin);
+      window.addEventListener('load', puliziaFinaleIconeLogin);
+      setInterval(puliziaFinaleIconeLogin, 700);
     })();
   </script>
 
