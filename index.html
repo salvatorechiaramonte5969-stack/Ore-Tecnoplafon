@@ -147,7 +147,6 @@
         <div class="workhub-field">
           <label for="supabaseEmail">Email</label>
           <div class="workhub-input-wrap">
-            <span class="workhub-icon">✉️</span>
             <input id="supabaseEmail" type="email" value="info@tecnoplafon.ch" placeholder="email@azienda.com" autocomplete="username" />
           </div>
         </div>
@@ -155,9 +154,7 @@
         <div class="workhub-field">
           <label for="supabasePassword">Password</label>
           <div class="workhub-input-wrap">
-            <span class="workhub-icon">🔒</span>
             <input id="supabasePassword" type="password" placeholder="••••••••••" autocomplete="current-password" />
-            <button type="button" class="workhub-eye" onclick="workhubTogglePassword()" title="Mostra o nascondi password">👁️</button>
           </div>
         </div>
 
@@ -501,12 +498,14 @@
 
         <button type="button" class="secondary solo-admin" id="toggleGestioneCantieriBtn" onclick="toggleGestioneCantieri()">Aggiungi / gestisci cantieri</button>
         <div id="gestioneCantieriPanel" class="gestione-cantieri-panel solo-admin">
-          <label for="nuovoCantiere">Aggiungi cantiere attivo con km e zona trasferta</label>
-          <div class="row">
+          <label for="nuovoCantiere">Aggiungi cantiere attivo con ID automatico, km e zona trasferta</label>
+          <div class="row3 workhub-cantiere-id-row">
             <input id="nuovoCantiere" placeholder="Es. Biasca" />
+            <input id="nuovoCantiereIdEsterno" class="workhub-cantiere-id-input" placeholder="ID automatico" readonly title="ID cantiere automatico per analisi futura con altro gestionale" />
             <input id="nuovoCantiereKm" type="number" min="0" step="0.1" placeholder="Km" />
           </div>
           <input id="nuovoCantiereZona" placeholder="Zona trasferta. Es. Leventina / Bellinzona / Lugano" style="margin-top:8px;" />
+          <p class="note workhub-cantiere-id-note">L'ID cantiere viene creato in automatico in sequenza: C-0001, C-0002, C-0003... Serve per collegare in futuro l'analisi cantiere con un altro gestionale.</p>
           <button type="button" class="secondary" onclick="aggiungiCantiereManuale()">Aggiungi cantiere attivo</button>
 
           <div class="cantieri-tabs">
@@ -1529,6 +1528,651 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
         const ruolo = String(localStorage.getItem('ruolo_utente_ore') || localStorage.getItem('ruolo_utente_corrente') || '').toLowerCase();
         if (!ruolo) workhubMostraSoloLogin();
       });
+    })();
+  </script>
+
+
+  <style id="workhub-cantieri-nascosti-click">
+    /* Cantieri: la lista resta nascosta finche' si clicca il bottone assegnato. */
+    #cantieriSalvati.workhub-cantieri-nascosti {
+      display: none !important;
+    }
+    #cantieriSalvati .workhub-cantiere-riga-nascosta {
+      display: none !important;
+    }
+    #gestioneCantieriPanel .workhub-cantieri-aiuto {
+      margin: 10px 0 0;
+      padding: 10px 12px;
+      border: 1px solid #dbe3ef;
+      border-radius: 14px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+  </style>
+
+  <script>
+    /*
+      WorkHub: cantieri attivi / terminati con apertura e chiusura corretta.
+      - All'apertura del pannello la lista e' chiusa.
+      - Clic su "Cantieri attivi" mostra solo gli attivi.
+      - Clic su "Cantieri terminati" mostra solo i terminati.
+      - Secondo clic sullo stesso bottone richiude la lista.
+    */
+    (function () {
+      let tipoCantieriAperto = '';
+      let ultimoClickCantieri = 0;
+
+      function listaCantieri() {
+        return document.getElementById('cantieriSalvati');
+      }
+
+      function tabAttivi() {
+        return document.getElementById('tabCantieriAttivi');
+      }
+
+      function tabTerminati() {
+        return document.getElementById('tabCantieriTerminati');
+      }
+
+      function aggiungiAiutoCantieri() {
+        const tabs = document.querySelector('#gestioneCantieriPanel .cantieri-tabs');
+        if (!tabs || document.getElementById('workhubCantieriAiutoClick')) return;
+        const aiuto = document.createElement('p');
+        aiuto.id = 'workhubCantieriAiutoClick';
+        aiuto.className = 'workhub-cantieri-aiuto';
+        aiuto.textContent = 'Liste nascoste: premi Cantieri attivi o Cantieri terminati. Premi di nuovo lo stesso bottone per chiudere.';
+        tabs.insertAdjacentElement('afterend', aiuto);
+      }
+
+      function pulisciFiltroRighe() {
+        const lista = listaCantieri();
+        if (!lista) return;
+        lista.querySelectorAll('.workhub-cantiere-riga-nascosta').forEach(el => {
+          el.classList.remove('workhub-cantiere-riga-nascosta');
+        });
+      }
+
+      function aggiornaBottoni(tipo) {
+        const a = tabAttivi();
+        const t = tabTerminati();
+        if (a) a.classList.toggle('attivo', tipo === 'attivi');
+        if (t) t.classList.toggle('attivo', tipo === 'terminati');
+      }
+
+      function nascondiCantieri() {
+        const lista = listaCantieri();
+        if (lista) {
+          lista.classList.add('workhub-cantieri-nascosti');
+          pulisciFiltroRighe();
+        }
+        tipoCantieriAperto = '';
+        aggiornaBottoni('');
+        aggiungiAiutoCantieri();
+      }
+
+      function testoElemento(el) {
+        return String((el && el.textContent) || '').toLowerCase();
+      }
+
+      function statoDaRiga(riga) {
+        if (!riga) return '';
+        const bottoni = Array.from(riga.querySelectorAll('button'));
+        const testoBottoni = bottoni.map(testoElemento).join(' ');
+        const testo = testoElemento(riga);
+
+        /* Di solito i cantieri terminati hanno un bottone per riattivarli. */
+        if (/riattiva|ripristina|riprendi|rimetti|attiva di nuovo|torna attivo/.test(testoBottoni)) return 'terminati';
+
+        /* Di solito i cantieri attivi hanno un bottone per terminarli. */
+        if (/termina|chiudi|fine cantiere|segna terminato/.test(testoBottoni)) return 'attivi';
+
+        if (/\bterminato\b|\bterminati\b|chiuso|concluso|finito/.test(testo)) return 'terminati';
+        if (/\battivo\b|\battivi\b|aperto|in corso/.test(testo)) return 'attivi';
+        return '';
+      }
+
+      function filtraRigheCantieri(tipo) {
+        const lista = listaCantieri();
+        if (!lista) return;
+
+        const righe = Array.from(lista.children).filter(el => el.nodeType === 1);
+        let almenoUnaRigaRiconosciuta = false;
+
+        righe.forEach(riga => {
+          const stato = statoDaRiga(riga);
+          if (stato) almenoUnaRigaRiconosciuta = true;
+          const nascondi = stato && stato !== tipo;
+          riga.classList.toggle('workhub-cantiere-riga-nascosta', !!nascondi);
+        });
+
+        /* Se la funzione originale non mette indicatori distinguibili, non elimino righe a caso. */
+        if (!almenoUnaRigaRiconosciuta) {
+          pulisciFiltroRighe();
+        }
+      }
+
+      function mostraCantieri(tipo) {
+        const lista = listaCantieri();
+        if (lista) lista.classList.remove('workhub-cantieri-nascosti');
+        tipoCantieriAperto = tipo;
+        aggiornaBottoni(tipo);
+        aggiungiAiutoCantieri();
+        setTimeout(() => filtraRigheCantieri(tipo), 0);
+        setTimeout(() => filtraRigheCantieri(tipo), 150);
+      }
+
+      const mostraTipoCantieriOriginale = window.mostraTipoCantieri;
+      window.mostraTipoCantieri = function (tipo) {
+        const tipoScelto = tipo === 'terminati' ? 'terminati' : 'attivi';
+        const adesso = Date.now();
+
+        if (tipoCantieriAperto === tipoScelto && adesso - ultimoClickCantieri > 80) {
+          ultimoClickCantieri = adesso;
+          nascondiCantieri();
+          return;
+        }
+
+        ultimoClickCantieri = adesso;
+        if (typeof mostraTipoCantieriOriginale === 'function') {
+          mostraTipoCantieriOriginale.apply(this, arguments);
+        }
+        mostraCantieri(tipoScelto);
+      };
+
+      const toggleGestioneCantieriOriginale = window.toggleGestioneCantieri;
+      window.toggleGestioneCantieri = function () {
+        if (typeof toggleGestioneCantieriOriginale === 'function') {
+          toggleGestioneCantieriOriginale.apply(this, arguments);
+        }
+        setTimeout(nascondiCantieri, 0);
+      };
+
+      document.addEventListener('DOMContentLoaded', function () {
+        aggiungiAiutoCantieri();
+        nascondiCantieri();
+        setTimeout(nascondiCantieri, 500);
+      });
+    })();
+  </script>
+
+
+  <style id="workhub-cantieri-id-automatico-style">
+    .workhub-cantiere-id-input {
+      background: #eef6ff !important;
+      border-color: #0d6efd !important;
+      color: #0b3f86 !important;
+      font-weight: 900 !important;
+      text-align: center !important;
+      letter-spacing: 0.8px !important;
+    }
+    .workhub-cantiere-id-note {
+      margin-top: 8px !important;
+      padding: 10px 12px !important;
+      border: 1px solid #bfdbfe !important;
+      border-radius: 14px !important;
+      background: #eff6ff !important;
+      color: #1e3a8a !important;
+    }
+    .workhub-cantiere-id-badge {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin-right: 8px !important;
+      padding: 4px 8px !important;
+      border-radius: 999px !important;
+      background: #dbeafe !important;
+      color: #1d4ed8 !important;
+      font-size: 12px !important;
+      font-weight: 900 !important;
+      letter-spacing: 0.4px !important;
+      vertical-align: middle !important;
+    }
+  </style>
+
+  <script id="workhub-cantieri-id-automatico-script">
+    /*
+      WorkHub: reset cantieri + ID cantiere automatico progressivo.
+      - Cancella le liste cantieri locali preesistenti una sola volta per questa versione.
+      - Lascia intatto lo storico ore: vengono rimossi solo salvataggi/listini con chiave cantier/cantiere/cantieri.
+      - Ogni nuovo cantiere riceve un ID sequenziale C-0001, C-0002, C-0003...
+      - L'ID viene salvato in localStorage per futuro collegamento con un altro gestionale.
+    */
+    (function () {
+      const RESET_FLAG = 'workhub_reset_cantieri_id_automatico_v1';
+      const SEQ_KEY = 'workhub_cantiere_id_seq_next';
+      const MAP_KEY = 'workhub_cantiere_id_mappa';
+      const PREFIX = 'C-';
+      const WIDTH = 4;
+
+      function pulito(v) {
+        return String(v || '').trim();
+      }
+
+      function chiaveNome(nome) {
+        return pulito(nome).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+      }
+
+      function idDaNumero(n) {
+        const numero = Math.max(1, Number(n) || 1);
+        return PREFIX + String(numero).padStart(WIDTH, '0');
+      }
+
+      function numeroDaId(id) {
+        const m = String(id || '').match(/(\d+)\s*$/);
+        return m ? Number(m[1]) : 0;
+      }
+
+      function leggiMappa() {
+        try {
+          const obj = JSON.parse(localStorage.getItem(MAP_KEY) || '{}');
+          return obj && typeof obj === 'object' ? obj : {};
+        } catch (_) {
+          return {};
+        }
+      }
+
+      function salvaMappa(mappa) {
+        try { localStorage.setItem(MAP_KEY, JSON.stringify(mappa || {})); } catch (_) {}
+      }
+
+      function prossimoNumeroDaMappa() {
+        const mappa = leggiMappa();
+        let max = 0;
+        Object.values(mappa).forEach(id => { max = Math.max(max, numeroDaId(id)); });
+        return max + 1;
+      }
+
+      function prossimoNumero() {
+        const salvato = Number(localStorage.getItem(SEQ_KEY) || 0);
+        return Math.max(1, salvato || prossimoNumeroDaMappa() || 1);
+      }
+
+      function prossimoId() {
+        return idDaNumero(prossimoNumero());
+      }
+
+      function aggiornaCampoId() {
+        const campo = document.getElementById('nuovoCantiereIdEsterno');
+        if (campo) campo.value = prossimoId();
+      }
+
+      function avanzaSequenza(idUsato) {
+        const usato = numeroDaId(idUsato);
+        const attuale = prossimoNumero();
+        const prossimo = Math.max(attuale, usato + 1);
+        try { localStorage.setItem(SEQ_KEY, String(prossimo)); } catch (_) {}
+        aggiornaCampoId();
+      }
+
+      function cancellaListeCantieriLocaliUnaVolta() {
+        if (localStorage.getItem(RESET_FLAG) === '1') return;
+
+        const daRimuovere = [];
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i) || '';
+            const k = key.toLowerCase();
+            if ((k.includes('cantiere') || k.includes('cantieri') || k.includes('cantier')) && key !== SEQ_KEY && key !== MAP_KEY && key !== RESET_FLAG) {
+              daRimuovere.push(key);
+            }
+          }
+          daRimuovere.forEach(key => localStorage.removeItem(key));
+          localStorage.setItem(MAP_KEY, '{}');
+          localStorage.setItem(SEQ_KEY, '1');
+          localStorage.setItem(RESET_FLAG, '1');
+        } catch (_) {}
+
+        svuotaCantieriInMemoria();
+        svuotaListeCantieriSchermo();
+      }
+
+      function svuotaCantieriInMemoria() {
+        [
+          'cantieri', 'cantieriAttivi', 'cantieriTerminati', 'cantieriSalvati',
+          'listaCantieriSalvati', 'cantieriDisponibili', 'cantieriArchivio'
+        ].forEach(nome => {
+          try {
+            if (Array.isArray(window[nome])) window[nome].length = 0;
+          } catch (_) {}
+        });
+      }
+
+      function svuotaListeCantieriSchermo() {
+        [
+          'cantieriSalvati', 'listaCantieri', 'collabQuickListaCantieri',
+          'selectCantiereInserimento', 'collabQuickSuggerimentiCantiere', 'suggerimentiCantiere'
+        ].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          if (el.tagName === 'SELECT') {
+            el.innerHTML = '<option value="">Scegli cantiere attivo</option>';
+          } else {
+            el.innerHTML = '';
+          }
+        });
+      }
+
+      function salvaIdCantiere(nome, id) {
+        nome = pulito(nome);
+        id = pulito(id) || prossimoId();
+        if (!nome) return '';
+        const mappa = leggiMappa();
+        mappa[chiaveNome(nome)] = id;
+        salvaMappa(mappa);
+        return id;
+      }
+
+      function idCantiere(nome) {
+        const mappa = leggiMappa();
+        return mappa[chiaveNome(nome)] || '';
+      }
+
+      function testoCantiereDaRiga(riga) {
+        if (!riga) return '';
+        const clone = riga.cloneNode(true);
+        clone.querySelectorAll('button, .workhub-cantiere-id-badge').forEach(el => el.remove());
+        return pulito(clone.textContent || '').split('\n').map(pulito).filter(Boolean)[0] || '';
+      }
+
+      function annotaRigheConId() {
+        const lista = document.getElementById('cantieriSalvati');
+        if (!lista) return;
+        Array.from(lista.children).forEach(riga => {
+          if (!riga || riga.querySelector('.workhub-cantiere-id-badge')) return;
+          const nome = testoCantiereDaRiga(riga);
+          const id = idCantiere(nome);
+          if (!id) return;
+          const badge = document.createElement('span');
+          badge.className = 'workhub-cantiere-id-badge';
+          badge.textContent = id;
+          riga.insertBefore(badge, riga.firstChild);
+        });
+      }
+
+      function preparaNuovoCantiere() {
+        const campoId = document.getElementById('nuovoCantiereIdEsterno');
+        if (campoId && !campoId.value) campoId.value = prossimoId();
+      }
+
+      function installaAggiuntaAutomatica() {
+        if (window.__workhubCantiereIdAutomaticoInstallato) return;
+        window.__workhubCantiereIdAutomaticoInstallato = true;
+
+        const originale = window.aggiungiCantiereManuale;
+        window.aggiungiCantiereManuale = function () {
+          preparaNuovoCantiere();
+          const nomePrima = pulito(document.getElementById('nuovoCantiere') && document.getElementById('nuovoCantiere').value);
+          const idPrima = pulito(document.getElementById('nuovoCantiereIdEsterno') && document.getElementById('nuovoCantiereIdEsterno').value) || prossimoId();
+
+          let risultato;
+          if (typeof originale === 'function') {
+            risultato = originale.apply(this, arguments);
+          }
+
+          if (nomePrima) {
+            salvaIdCantiere(nomePrima, idPrima);
+            avanzaSequenza(idPrima);
+          }
+
+          setTimeout(function () {
+            aggiornaCampoId();
+            annotaRigheConId();
+            if (typeof aggiornaListeCantieri === 'function') {
+              try { aggiornaListeCantieri(); } catch (_) {}
+            }
+          }, 100);
+
+          return risultato;
+        };
+      }
+
+      function installaDopoCaricamentoOnline() {
+        const originale = window.supabaseCaricaDati;
+        if (typeof originale !== 'function' || originale.__workhubCantiereResetId) return;
+        window.supabaseCaricaDati = async function () {
+          const res = await originale.apply(this, arguments);
+          if (localStorage.getItem(RESET_FLAG) !== '1') cancellaListeCantieriLocaliUnaVolta();
+          aggiornaCampoId();
+          annotaRigheConId();
+          return res;
+        };
+        window.supabaseCaricaDati.__workhubCantiereResetId = true;
+      }
+
+      window.workhubProssimoIdCantiere = prossimoId;
+      window.workhubIdCantiere = idCantiere;
+      window.workhubResetCantieriConIdAutomatico = function () {
+        try { localStorage.removeItem(RESET_FLAG); } catch (_) {}
+        cancellaListeCantieriLocaliUnaVolta();
+        aggiornaCampoId();
+      };
+
+      document.addEventListener('DOMContentLoaded', function () {
+        cancellaListeCantieriLocaliUnaVolta();
+        aggiornaCampoId();
+        installaAggiuntaAutomatica();
+        installaDopoCaricamentoOnline();
+        setTimeout(function () {
+          aggiornaCampoId();
+          annotaRigheConId();
+        }, 500);
+      });
+
+      setTimeout(function () {
+        cancellaListeCantieriLocaliUnaVolta();
+        aggiornaCampoId();
+        installaAggiuntaAutomatica();
+        installaDopoCaricamentoOnline();
+      }, 1200);
+    })();
+  </script>
+
+
+  <style id="workhub-fix-icone-login-collaboratore">
+    /* WorkHub: icone email/lucchetto non disturbano piu' l'inserimento dati. */
+    .workhub-input-wrap {
+      position: relative !important;
+    }
+
+    .workhub-input-wrap .workhub-icon {
+      display: none !important;
+    }
+
+    .workhub-input-wrap input {
+      padding-left: 16px !important;
+      padding-right: 16px !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+
+    .workhub-input-wrap input[type="password"] {
+      padding-right: 58px !important;
+    }
+
+    .workhub-input-wrap .workhub-eye {
+      position: absolute !important;
+      right: 8px !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      width: 42px !important;
+      height: 42px !important;
+      min-width: 42px !important;
+      padding: 0 !important;
+      border-radius: 12px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      z-index: 2 !important;
+    }
+
+    @media (max-width: 700px) {
+      .workhub-input-wrap input {
+        font-size: 18px !important;
+        min-height: 54px !important;
+      }
+
+      .workhub-input-wrap input[type="password"] {
+        padding-right: 54px !important;
+      }
+
+      .workhub-input-wrap .workhub-eye {
+        right: 7px !important;
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+      }
+    }
+  </style>
+
+
+  <style id="workhub-fix-definitivo-campi-login-liberi">
+    /* Fix definitivo: niente elementi sopra ai campi email/password. */
+    #supabaseLoginBox .workhub-input-wrap {
+      display: block !important;
+      position: relative !important;
+      width: 100% !important;
+    }
+
+    #supabaseLoginBox .workhub-input-wrap .workhub-icon,
+    #supabaseLoginBox .workhub-input-wrap .workhub-eye {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      min-width: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: 0 !important;
+      position: absolute !important;
+      left: -9999px !important;
+    }
+
+    #supabaseLoginBox #supabaseEmail,
+    #supabaseLoginBox #supabasePassword {
+      display: block !important;
+      width: 100% !important;
+      min-height: 58px !important;
+      padding: 0 16px !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      font-size: 19px !important;
+      line-height: 58px !important;
+      text-indent: 0 !important;
+      background-image: none !important;
+    }
+
+    @media (max-width: 700px) {
+      #supabaseLoginBox #supabaseEmail,
+      #supabaseLoginBox #supabasePassword {
+        min-height: 60px !important;
+        line-height: 60px !important;
+        font-size: 18px !important;
+        padding-left: 18px !important;
+        padding-right: 18px !important;
+      }
+    }
+  </style>
+
+  <script>
+    /* Fix definitivo: rimuove fisicamente icone e occhio dal login, cosi' non possono coprire i campi. */
+    (function () {
+      function pulisciCampiLogin() {
+        document.querySelectorAll('#supabaseLoginBox .workhub-input-wrap .workhub-icon, #supabaseLoginBox .workhub-input-wrap .workhub-eye').forEach(function (el) {
+          try { el.remove(); } catch (_) { el.style.display = 'none'; }
+        });
+        ['supabaseEmail', 'supabasePassword'].forEach(function (id) {
+          var input = document.getElementById(id);
+          if (!input) return;
+          input.style.paddingLeft = '16px';
+          input.style.paddingRight = '16px';
+          input.style.textIndent = '0';
+          input.style.backgroundImage = 'none';
+        });
+      }
+      document.addEventListener('DOMContentLoaded', pulisciCampiLogin);
+      setTimeout(pulisciCampiLogin, 300);
+      setTimeout(pulisciCampiLogin, 1200);
+    })();
+  </script>
+
+
+  <style id="workhub-fix-icone-rimosse-definitivo">
+    /* Rimozione completa icone login: nessuna icona sopra o dentro email/password. */
+    #supabaseLoginBox .workhub-input-wrap,
+    #supabaseLoginBox .workhub-field {
+      position: static !important;
+    }
+
+    #supabaseLoginBox .workhub-input-wrap::before,
+    #supabaseLoginBox .workhub-input-wrap::after,
+    #supabaseLoginBox .workhub-field::before,
+    #supabaseLoginBox .workhub-field::after,
+    #supabaseLoginBox #supabaseEmail::before,
+    #supabaseLoginBox #supabaseEmail::after,
+    #supabaseLoginBox #supabasePassword::before,
+    #supabaseLoginBox #supabasePassword::after,
+    #supabaseLoginBox .workhub-icon,
+    #supabaseLoginBox .workhub-eye {
+      content: none !important;
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    #supabaseLoginBox #supabaseEmail,
+    #supabaseLoginBox #supabasePassword {
+      -webkit-appearance: none !important;
+      appearance: none !important;
+      display: block !important;
+      width: 100% !important;
+      min-height: 62px !important;
+      height: 62px !important;
+      padding: 0 18px !important;
+      margin: 0 !important;
+      border-radius: 16px !important;
+      box-sizing: border-box !important;
+      font-size: 20px !important;
+      line-height: normal !important;
+      text-indent: 0 !important;
+      background-image: none !important;
+      background-position: initial !important;
+      background-repeat: no-repeat !important;
+    }
+
+    #supabaseLoginBox input::-ms-reveal,
+    #supabaseLoginBox input::-ms-clear {
+      display: none !important;
+    }
+  </style>
+
+  <script>
+    /* Rimozione definitiva: elimina dal DOM icone email, lucchetto e occhio anche se una vecchia regola li ricrea. */
+    (function () {
+      function rimuoviIconeLoginDefinitivo() {
+        var box = document.getElementById('supabaseLoginBox');
+        if (!box) return;
+        box.querySelectorAll('.workhub-icon, .workhub-eye').forEach(function (el) {
+          if (el) el.remove();
+        });
+        ['supabaseEmail', 'supabasePassword'].forEach(function (id) {
+          var input = document.getElementById(id);
+          if (!input) return;
+          input.style.paddingLeft = '18px';
+          input.style.paddingRight = '18px';
+          input.style.backgroundImage = 'none';
+          input.style.textIndent = '0';
+        });
+      }
+      rimuoviIconeLoginDefinitivo();
+      document.addEventListener('DOMContentLoaded', rimuoviIconeLoginDefinitivo);
+      setTimeout(rimuoviIconeLoginDefinitivo, 100);
+      setTimeout(rimuoviIconeLoginDefinitivo, 500);
+      setTimeout(rimuoviIconeLoginDefinitivo, 1500);
     })();
   </script>
 
