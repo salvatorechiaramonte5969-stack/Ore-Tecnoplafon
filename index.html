@@ -2155,7 +2155,7 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
       function rimuoviIconeLoginDefinitivo() {
         var box = document.getElementById('supabaseLoginBox');
         if (!box) return;
-        box.querySelectorAll('.workhub-icon, .workhub-eye').forEach(function (el) {
+        box.querySelectorAll('.workhub-icon').forEach(function (el) {
           if (el) el.remove();
         });
         ['supabaseEmail', 'supabasePassword'].forEach(function (id) {
@@ -2261,7 +2261,7 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
         var box = document.getElementById('supabaseLoginBox');
         if (!box) return;
 
-        box.querySelectorAll('.workhub-icon, .workhub-eye, .workhub-lock-note, [class*="icon"], [class*="Icon"]').forEach(function (el) {
+        box.querySelectorAll('.workhub-icon, .workhub-lock-note').forEach(function (el) {
           try { el.remove(); } catch (_) { el.style.display = 'none'; }
         });
 
@@ -2281,6 +2281,286 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
       document.addEventListener('DOMContentLoaded', puliziaFinaleIconeLogin);
       window.addEventListener('load', puliziaFinaleIconeLogin);
       setInterval(puliziaFinaleIconeLogin, 700);
+    })();
+  </script>
+
+
+
+  <style id="workhub-login-solo-occhio-definitivo">
+    /* Login WorkHub: lascia solo l'occhio password. Niente email, lucchetto o nota con lucchetto. */
+    #supabaseLoginBox .workhub-icon,
+    #supabaseLoginBox .workhub-lock-note {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
+    }
+
+    #supabaseLoginBox .workhub-input-wrap {
+      position: relative !important;
+      display: block !important;
+      width: 100% !important;
+    }
+
+    #supabaseLoginBox #supabaseEmail {
+      width: 100% !important;
+      height: 64px !important;
+      min-height: 64px !important;
+      padding: 0 18px !important;
+      box-sizing: border-box !important;
+      font-size: 20px !important;
+      line-height: normal !important;
+      text-indent: 0 !important;
+      background-image: none !important;
+    }
+
+    #supabaseLoginBox #supabasePassword {
+      width: 100% !important;
+      height: 64px !important;
+      min-height: 64px !important;
+      padding: 0 68px 0 18px !important;
+      box-sizing: border-box !important;
+      font-size: 20px !important;
+      line-height: normal !important;
+      text-indent: 0 !important;
+      background-image: none !important;
+    }
+
+    #supabaseLoginBox button.workhub-eye {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+      position: absolute !important;
+      right: 10px !important;
+      left: auto !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      width: 46px !important;
+      height: 46px !important;
+      min-width: 46px !important;
+      min-height: 46px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: 1px solid #d1d5db !important;
+      border-radius: 14px !important;
+      background: #ffffff !important;
+      color: #111827 !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 22px !important;
+      line-height: 1 !important;
+      z-index: 20 !important;
+      cursor: pointer !important;
+      overflow: visible !important;
+    }
+  </style>
+
+  <script id="workhub-login-solo-occhio-definitivo-js">
+    /* Mantiene solo l'occhio: elimina email/lucchetto e crea il pulsante se manca. */
+    (function () {
+      function togglePasswordSoloOcchio() {
+        var input = document.getElementById('supabasePassword');
+        if (!input) return;
+        input.type = input.type === 'password' ? 'text' : 'password';
+      }
+
+      function sistemaLoginSoloOcchio() {
+        var box = document.getElementById('supabaseLoginBox');
+        var password = document.getElementById('supabasePassword');
+        if (!box || !password) return;
+
+        box.querySelectorAll('.workhub-icon, .workhub-lock-note').forEach(function (el) {
+          try { el.remove(); } catch (_) { el.style.display = 'none'; }
+        });
+
+        var wrap = password.closest('.workhub-input-wrap') || password.parentElement;
+        if (!wrap) return;
+        wrap.style.position = 'relative';
+
+        var eye = wrap.querySelector('button.workhub-eye');
+        if (!eye) {
+          eye = document.createElement('button');
+          eye.type = 'button';
+          eye.className = 'workhub-eye';
+          eye.textContent = '👁️';
+          eye.title = 'Mostra / nascondi';
+          wrap.appendChild(eye);
+        }
+        eye.onclick = togglePasswordSoloOcchio;
+        eye.style.display = 'flex';
+        eye.style.visibility = 'visible';
+        eye.style.opacity = '1';
+
+        var email = document.getElementById('supabaseEmail');
+        if (email) {
+          email.style.paddingLeft = '18px';
+          email.style.paddingRight = '18px';
+          email.style.backgroundImage = 'none';
+        }
+        password.style.paddingLeft = '18px';
+        password.style.paddingRight = '68px';
+        password.style.backgroundImage = 'none';
+      }
+
+      window.workhubTogglePassword = togglePasswordSoloOcchio;
+      sistemaLoginSoloOcchio();
+      document.addEventListener('DOMContentLoaded', sistemaLoginSoloOcchio);
+      window.addEventListener('load', sistemaLoginSoloOcchio);
+      setTimeout(sistemaLoginSoloOcchio, 300);
+      setTimeout(sistemaLoginSoloOcchio, 1200);
+      setInterval(sistemaLoginSoloOcchio, 1500);
+    })();
+  </script>
+
+
+
+  <style id="workhub-occhio-password-visibile-finale">
+    /* FIX FINALE: mostra SOLO l'occhio password e non lo fa nascondere da vecchie regole. */
+    #supabaseLoginBox .workhub-icon,
+    #supabaseLoginBox .workhub-lock-note {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    #supabaseLoginBox .workhub-input-wrap {
+      position: relative !important;
+      display: block !important;
+      width: 100% !important;
+      overflow: visible !important;
+    }
+
+    #supabaseLoginBox input#supabaseEmail {
+      padding-left: 18px !important;
+      padding-right: 18px !important;
+      background-image: none !important;
+      text-indent: 0 !important;
+    }
+
+    #supabaseLoginBox input#supabasePassword {
+      padding-left: 18px !important;
+      padding-right: 76px !important;
+      background-image: none !important;
+      text-indent: 0 !important;
+    }
+
+    #supabaseLoginBox .workhub-input-wrap > button.workhub-eye,
+    #supabaseLoginBox button#workhubOcchioPasswordFinale {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+      position: absolute !important;
+      right: 10px !important;
+      left: auto !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      width: 50px !important;
+      height: 50px !important;
+      min-width: 50px !important;
+      min-height: 50px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: 2px solid #d1d5db !important;
+      border-radius: 16px !important;
+      background: #ffffff !important;
+      color: #111827 !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 24px !important;
+      line-height: 1 !important;
+      z-index: 9999 !important;
+      cursor: pointer !important;
+      overflow: visible !important;
+      appearance: none !important;
+      -webkit-appearance: none !important;
+    }
+  </style>
+
+  <script id="workhub-occhio-password-visibile-finale-js">
+    /* Crea e mantiene visibile solo l'occhio password. */
+    (function () {
+      function impostaImportante(el, prop, val) {
+        if (el && el.style) el.style.setProperty(prop, val, 'important');
+      }
+
+      function toggleOcchioPasswordFinale() {
+        var input = document.getElementById('supabasePassword');
+        if (!input) return;
+        input.type = input.type === 'password' ? 'text' : 'password';
+      }
+
+      function sistemaOcchioPasswordFinale() {
+        var box = document.getElementById('supabaseLoginBox');
+        var password = document.getElementById('supabasePassword');
+        var email = document.getElementById('supabaseEmail');
+        if (!box || !password) return;
+
+        box.querySelectorAll('.workhub-icon, .workhub-lock-note').forEach(function (el) {
+          try { el.remove(); } catch (_) { impostaImportante(el, 'display', 'none'); }
+        });
+
+        var wrap = password.closest('.workhub-input-wrap') || password.parentElement;
+        if (!wrap) return;
+        impostaImportante(wrap, 'position', 'relative');
+        impostaImportante(wrap, 'display', 'block');
+        impostaImportante(wrap, 'width', '100%');
+        impostaImportante(wrap, 'overflow', 'visible');
+
+        var eye = document.getElementById('workhubOcchioPasswordFinale') || wrap.querySelector('button.workhub-eye');
+        if (!eye) {
+          eye = document.createElement('button');
+          eye.type = 'button';
+          eye.className = 'workhub-eye';
+          eye.id = 'workhubOcchioPasswordFinale';
+          eye.textContent = '👁';
+          eye.setAttribute('aria-label', 'Mostra');
+          wrap.appendChild(eye);
+        }
+        eye.type = 'button';
+        eye.className = 'workhub-eye';
+        eye.id = 'workhubOcchioPasswordFinale';
+        eye.textContent = '👁';
+        eye.setAttribute('aria-label', 'Mostra');
+        eye.removeAttribute('title');
+        eye.onclick = toggleOcchioPasswordFinale;
+
+        [
+          ['display','flex'], ['visibility','visible'], ['opacity','1'], ['pointer-events','auto'],
+          ['position','absolute'], ['right','10px'], ['left','auto'], ['top','50%'],
+          ['transform','translateY(-50%)'], ['width','50px'], ['height','50px'],
+          ['min-width','50px'], ['min-height','50px'], ['padding','0'], ['margin','0'],
+          ['border','2px solid #d1d5db'], ['border-radius','16px'], ['background','#ffffff'],
+          ['color','#111827'], ['align-items','center'], ['justify-content','center'],
+          ['font-size','24px'], ['line-height','1'], ['z-index','9999'], ['cursor','pointer'],
+          ['overflow','visible']
+        ].forEach(function (r) { impostaImportante(eye, r[0], r[1]); });
+
+        if (email) {
+          impostaImportante(email, 'padding-left', '18px');
+          impostaImportante(email, 'padding-right', '18px');
+          impostaImportante(email, 'background-image', 'none');
+          impostaImportante(email, 'text-indent', '0');
+        }
+        impostaImportante(password, 'padding-left', '18px');
+        impostaImportante(password, 'padding-right', '76px');
+        impostaImportante(password, 'background-image', 'none');
+        impostaImportante(password, 'text-indent', '0');
+      }
+
+      window.workhubTogglePassword = toggleOcchioPasswordFinale;
+      sistemaOcchioPasswordFinale();
+      document.addEventListener('DOMContentLoaded', sistemaOcchioPasswordFinale);
+      window.addEventListener('load', sistemaOcchioPasswordFinale);
+      setTimeout(sistemaOcchioPasswordFinale, 100);
+      setTimeout(sistemaOcchioPasswordFinale, 500);
+      setTimeout(sistemaOcchioPasswordFinale, 1500);
+      setInterval(sistemaOcchioPasswordFinale, 1000);
     })();
   </script>
 
