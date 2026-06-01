@@ -7515,3 +7515,186 @@ ${descrizione}`)) return;
     window.salvaDatiAmministratoreStorage = patchSalvaStorageAdmin;
   }
 })();
+
+/* WorkHub V111 - ricerca e scorrimento piu stabili.
+   Patch minima: non cambia calcoli, login, Supabase, ore, AVS, trasferte o vacanze.
+   Evita selezioni accidentali quando si scorre sui bottoni e sui suggerimenti. */
+(function () {
+  'use strict';
+
+  var SOGLIA_MOVIMENTO = 10;
+  var statoTouch = {
+    attivo: false,
+    x: 0,
+    y: 0,
+    mosso: false,
+    tempo: 0
+  };
+
+  function isAreaSensibile(el) {
+    return !!(el && el.closest && el.closest(
+      '.suggerimenti-ricerca, .operai-lista-alta, .operaio-lista, #operaiListaSinistra, #collaboratoriSalvati, #cantieriSalvati, #lavoriSalvati, .tag-list'
+    ));
+  }
+
+  function inizioTouch(e) {
+    if (!e.touches || !e.touches.length || !isAreaSensibile(e.target)) return;
+    var t = e.touches[0];
+    statoTouch.attivo = true;
+    statoTouch.x = t.clientX;
+    statoTouch.y = t.clientY;
+    statoTouch.mosso = false;
+    statoTouch.tempo = Date.now();
+  }
+
+  function movimentoTouch(e) {
+    if (!statoTouch.attivo || !e.touches || !e.touches.length) return;
+    var t = e.touches[0];
+    var dx = Math.abs(t.clientX - statoTouch.x);
+    var dy = Math.abs(t.clientY - statoTouch.y);
+    if (dx > SOGLIA_MOVIMENTO || dy > SOGLIA_MOVIMENTO) statoTouch.mosso = true;
+  }
+
+  function fineTouch() {
+    setTimeout(function () {
+      statoTouch.attivo = false;
+      statoTouch.mosso = false;
+    }, 180);
+  }
+
+  function bloccaClickDaScroll(e) {
+    if (!isAreaSensibile(e.target)) return;
+    if (statoTouch.mosso) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    }
+  }
+
+  document.addEventListener('touchstart', inizioTouch, { passive: true, capture: true });
+  document.addEventListener('touchmove', movimentoTouch, { passive: true, capture: true });
+  document.addEventListener('touchend', fineTouch, { passive: true, capture: true });
+  document.addEventListener('click', bloccaClickDaScroll, true);
+
+  function chiamaFunzioneGlobale(nome, valore) {
+    var fn = window[nome];
+    if (typeof fn === 'function') fn(valore);
+  }
+
+  function creaBottoneSuggerimento(voce, nomeFunzioneScelta, testoVisibile) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'suggerimento-voce';
+    btn.setAttribute('role', 'option');
+    btn.dataset.voce = voce;
+    btn.textContent = testoVisibile || voce;
+    btn.addEventListener('click', function (event) {
+      if (statoTouch.mosso) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      chiamaFunzioneGlobale(nomeFunzioneScelta, btn.dataset.voce);
+    });
+    return btn;
+  }
+
+  function renderSuggerimentiSicuri(boxId, valori, nomeFunzioneScelta, etichettaFn) {
+    var box = document.getElementById(boxId);
+    if (!box) return;
+    box.setAttribute('role', 'listbox');
+    box.innerHTML = '';
+    if (!valori || !valori.length) {
+      var vuoto = document.createElement('div');
+      vuoto.className = 'suggerimento-vuoto';
+      vuoto.textContent = 'Nessuna voce trovata.';
+      box.appendChild(vuoto);
+      box.classList.add('aperto');
+      return;
+    }
+    valori.forEach(function (voce) {
+      var testo = voce;
+      if (typeof etichettaFn === 'function') {
+        try { testo = etichettaFn(voce); } catch (_) { testo = voce; }
+      }
+      box.appendChild(creaBottoneSuggerimento(voce, nomeFunzioneScelta, testo));
+    });
+    box.classList.add('aperto');
+  }
+
+  function aggiornaFiltroSenzaScatti(input, contenitore) {
+    if (!input || !contenitore) return;
+    var query = String(input.value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    Array.prototype.forEach.call(contenitore.children || [], function (el) {
+      var testo = String(el.textContent || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      el.classList.toggle('ricerca-nascosto-safe', !!query && testo.indexOf(query) === -1);
+    });
+  }
+
+  function miglioraCaselleRicercaRapida() {
+    document.querySelectorAll('.ricerca-rapida-safe-box input').forEach(function (input) {
+      if (input.dataset.workhubV111 === '1') return;
+      input.dataset.workhubV111 = '1';
+      input.setAttribute('enterkeyhint', 'search');
+      input.setAttribute('inputmode', 'search');
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') e.preventDefault();
+      });
+      input.addEventListener('click', function (e) { e.stopPropagation(); });
+      input.addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: true });
+      var contenitore = input.parentNode && input.parentNode.nextElementSibling;
+      input.addEventListener('input', function () {
+        window.clearTimeout(input.__workhubTimer);
+        input.__workhubTimer = window.setTimeout(function () {
+          aggiornaFiltroSenzaScatti(input, contenitore);
+        }, 40);
+      });
+    });
+  }
+
+  function applicaPatchSuggerimenti() {
+    try {
+      if (typeof window.renderSuggerimentiRicerca === 'function' && !window.renderSuggerimentiRicerca.__workhubV111) {
+        var nuovoRender = function (boxId, valori, selezionaFnNome) {
+          var etichetta = (boxId === 'suggerimentiLavoro' && typeof window.etichettaLavoro === 'function') ? window.etichettaLavoro : null;
+          renderSuggerimentiSicuri(boxId, valori, selezionaFnNome, etichetta);
+        };
+        nuovoRender.__workhubV111 = true;
+        window.renderSuggerimentiRicerca = nuovoRender;
+        try { renderSuggerimentiRicerca = nuovoRender; } catch (_) {}
+      }
+    } catch (_) {}
+
+    try {
+      if (typeof window.collabQuickRenderSuggerimenti === 'function' && !window.collabQuickRenderSuggerimenti.__workhubV111) {
+        var nuovoQuick = function (boxId, valori, nomeFunzioneScelta) {
+          var etichetta = (boxId === 'collabQuickSuggerimentiLavoro' && typeof window.etichettaLavoro === 'function') ? window.etichettaLavoro : null;
+          renderSuggerimentiSicuri(boxId, valori, nomeFunzioneScelta, etichetta);
+        };
+        nuovoQuick.__workhubV111 = true;
+        window.collabQuickRenderSuggerimenti = nuovoQuick;
+        try { collabQuickRenderSuggerimenti = nuovoQuick; } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  function inizializzaV111() {
+    applicaPatchSuggerimenti();
+    miglioraCaselleRicercaRapida();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    inizializzaV111();
+    setTimeout(inizializzaV111, 300);
+    setTimeout(inizializzaV111, 1000);
+  });
+
+  window.addEventListener('load', function () {
+    inizializzaV111();
+    setTimeout(inizializzaV111, 800);
+  });
+
+  document.addEventListener('focusin', function () { setTimeout(miglioraCaselleRicercaRapida, 80); });
+})();
