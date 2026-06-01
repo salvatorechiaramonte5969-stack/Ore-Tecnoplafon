@@ -4958,22 +4958,65 @@ ${descrizione}`)) return;
     }
 
     function collabAppMostraSezione(sezione) {
-      ["ore", "mese", "vacanze", "stampa"].forEach(nome => {
-        const id = "collabView" + nome.charAt(0).toUpperCase() + nome.slice(1);
-        document.getElementById(id)?.classList.toggle("attiva", nome === sezione);
-      });
+      const home = document.getElementById("collabHomeScreen");
       const pannello = document.getElementById("collabQuickPanel");
+      const mappa = {
+        ore: "collabViewOre",
+        mese: "collabViewMese",
+        vacanze: "collabViewVacanze",
+        stampa: "collabViewStampa"
+      };
+      const sezioneValida = Object.prototype.hasOwnProperty.call(mappa, sezione);
+
+      if (home && sezioneValida) {
+        home.classList.add("pagina-collaboratore-aperta");
+        home.classList.remove("menu-collaboratore-aperto");
+      }
+
+      Object.keys(mappa).forEach(nome => {
+        const pagina = document.getElementById(mappa[nome]);
+        if (!pagina) return;
+        const attiva = nome === sezione;
+        pagina.classList.toggle("attiva", attiva);
+        pagina.hidden = !attiva;
+      });
+
       if (pannello) pannello.classList.toggle("aperto", sezione === "ore");
       collabQuickAggiornaScelte();
       collabQuickRenderOggi();
       collabQuickRenderMese();
       collabAppRenderVacanze();
       if (sezione === "ore") setTimeout(() => collabQuickMostraSuggerimentiCantiere(), 80);
+
+      const paginaAttiva = sezioneValida ? document.getElementById(mappa[sezione]) : null;
+      setTimeout(() => {
+        try {
+          if (paginaAttiva && typeof paginaAttiva.scrollIntoView === "function") {
+            paginaAttiva.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+          } else if (pannello && typeof pannello.scrollIntoView === "function") {
+            pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+          }
+        } catch (errore) {}
+      }, 30);
     }
 
     function collabAppChiudiSezioni() {
-      ["collabViewOre", "collabViewMese", "collabViewVacanze", "collabViewStampa"].forEach(id => document.getElementById(id)?.classList.remove("attiva"));
+      const home = document.getElementById("collabHomeScreen");
+      if (home) {
+        home.classList.remove("pagina-collaboratore-aperta");
+        home.classList.add("menu-collaboratore-aperto");
+      }
+      ["collabViewOre", "collabViewMese", "collabViewVacanze", "collabViewStampa"].forEach(id => {
+        const pagina = document.getElementById(id);
+        if (!pagina) return;
+        pagina.classList.remove("attiva");
+        pagina.hidden = true;
+      });
       document.getElementById("collabQuickPanel")?.classList.remove("aperto");
+      const pannello = document.getElementById("collabQuickPanel");
+      setTimeout(() => {
+        try { if (pannello && typeof pannello.scrollIntoView === "function") pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" }); } catch (errore) {}
+      }, 30);
     }
 
     function collabAppCaricaVacanze() {
