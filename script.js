@@ -7316,3 +7316,202 @@ ${descrizione}`)) return;
   });
   window.addEventListener('load', function () { setTimeout(window.workhubAggiornaOrarioAdminVisibileApp, 400); });
 })();
+
+/*
+  FIX V92 - Regole orario amministratore su Supabase.
+  Prima le regole erano salvate solo in localStorage dentro datiAmministratore.regoleOrari.
+  Ora vengono salvate e ricaricate anche online dalla tabella regole_orari_amministratore.
+*/
+(function () {
+  const WORKHUB_TABELLE_REGOLE_ADMIN = ["regole_orari_amministratore", "amministrazione_regole_orari"];
+  let workhubTabellaRegoleAdminOk = "";
+  let workhubSalvataggioRegoleInCorso = false;
+
+  function workhubClientSupabaseRegoleAdmin() {
+    try {
+      return typeof inizializzaSupabase === "function" ? inizializzaSupabase() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function workhubUtenteSupabasePresente() {
+    try {
+      return !!supabaseUtente;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function workhubAziendaIdRegoleAdmin() {
+    try {
+      if (typeof SUPABASE_AZIENDA_ID === "string" && SUPABASE_AZIENDA_ID) return SUPABASE_AZIENDA_ID;
+    } catch (_) {}
+    try {
+      return localStorage.getItem("azienda_id") || localStorage.getItem("workhub_azienda_id") || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function workhubNormalizzaRegoleAdminPrimaSync() {
+    try {
+      if (typeof normalizzaRegoleOrariAmministratore === "function") normalizzaRegoleOrariAmministratore();
+    } catch (_) {}
+    if (!datiAmministratore || typeof datiAmministratore !== "object") datiAmministratore = { mesi: {}, regoleOrari: [] };
+    if (!Array.isArray(datiAmministratore.regoleOrari)) datiAmministratore.regoleOrari = [];
+  }
+
+  function workhubPayloadRegolaAdmin(regola, ordine) {
+    return {
+      id: regola.id || (typeof creaId === "function" ? creaId() : ("regola_" + Date.now() + "_" + ordine)),
+      azienda_id: workhubAziendaIdRegoleAdmin(),
+      dal: String(regola.dal || ""),
+      al: String(regola.al || ""),
+      inizio: String(regola.inizio || "07:00"),
+      fine: String(regola.fine || "16:00"),
+      pausa: Number(regola.pausa || 0),
+      nota: typeof testoPulito === "function" ? testoPulito(regola.nota || "") : String(regola.nota || "").trim(),
+      ordinamento: Number(ordine || 0),
+      aggiornato_il: new Date().toISOString()
+    };
+  }
+
+  async function workhubProvaCaricaRegoleAdminDaTabella(client, nomeTabella, aziendaId) {
+    const res = await client
+      .from(nomeTabella)
+      .select("id, dal, al, inizio, fine, pausa, nota, ordinamento")
+      .eq("azienda_id", aziendaId)
+      .order("dal", { ascending: true })
+      .order("al", { ascending: true });
+    if (res.error) return { ok: false, error: res.error, data: [] };
+    workhubTabellaRegoleAdminOk = nomeTabella;
+    return { ok: true, data: Array.isArray(res.data) ? res.data : [] };
+  }
+
+  async function workhubCaricaRegoleOrariAdminSupabase() {
+    const client = workhubClientSupabaseRegoleAdmin();
+    const aziendaId = workhubAziendaIdRegoleAdmin();
+    if (!client || !workhubUtenteSupabasePresente() || !aziendaId) return false;
+
+    let ultimoErrore = null;
+    const tabelle = workhubTabellaRegoleAdminOk
+      ? [workhubTabellaRegoleAdminOk].concat(WORKHUB_TABELLE_REGOLE_ADMIN.filter(t => t !== workhubTabellaRegoleAdminOk))
+      : WORKHUB_TABELLE_REGOLE_ADMIN;
+
+    for (const tabella of tabelle) {
+      const esito = await workhubProvaCaricaRegoleAdminDaTabella(client, tabella, aziendaId);
+      if (!esito.ok) {
+        ultimoErrore = esito.error;
+        continue;
+      }
+
+      workhubNormalizzaRegoleAdminPrimaSync();
+      datiAmministratore.regoleOrari = esito.data.map(function (r, indice) {
+        return {
+          id: r.id || (typeof creaId === "function" ? creaId() : ("regola_online_" + indice)),
+          dal: String(r.dal || ""),
+          al: String(r.al || ""),
+          inizio: String(r.inizio || "07:00").slice(0, 5),
+          fine: String(r.fine || "16:00").slice(0, 5),
+          pausa: String(r.pausa ?? "0"),
+          nota: typeof testoPulito === "function" ? testoPulito(r.nota || "") : String(r.nota || "").trim()
+        };
+      });
+
+      try { if (typeof normalizzaRegoleOrariAmministratore === "function") normalizzaRegoleOrariAmministratore(); } catch (_) {}
+      try { if (typeof salvaDatiAmministratoreStorageLocale === "function") salvaDatiAmministratoreStorageLocale(); } catch (_) {
+        try { localStorage.setItem(ADMIN_KEY, JSON.stringify(datiAmministratore)); } catch (_) {}
+      }
+      try { if (typeof renderRegoleOrariAmministratore === "function") renderRegoleOrariAmministratore(); } catch (_) {}
+      try { if (typeof applicaDatiAmministratoreAlMese === "function") applicaDatiAmministratoreAlMese(false); } catch (_) {}
+      try { if (window.workhubAggiornaOrarioAdminVisibileApp) window.workhubAggiornaOrarioAdminVisibileApp(); } catch (_) {}
+      return true;
+    }
+
+    if (ultimoErrore) {
+      console.warn("Regole orario amministratore non caricate da Supabase:", ultimoErrore.message);
+    }
+    return false;
+  }
+
+  async function workhubProvaSalvaRegoleAdminInTabella(client, nomeTabella, aziendaId, righe) {
+    const cancellazione = await client.from(nomeTabella).delete().eq("azienda_id", aziendaId);
+    if (cancellazione.error) return { ok: false, error: cancellazione.error };
+    if (!righe.length) {
+      workhubTabellaRegoleAdminOk = nomeTabella;
+      return { ok: true };
+    }
+    const inserimento = await client.from(nomeTabella).insert(righe);
+    if (inserimento.error) return { ok: false, error: inserimento.error };
+    workhubTabellaRegoleAdminOk = nomeTabella;
+    return { ok: true };
+  }
+
+  async function workhubSalvaRegoleOrariAdminSupabase() {
+    if (workhubSalvataggioRegoleInCorso) return;
+    const client = workhubClientSupabaseRegoleAdmin();
+    const aziendaId = workhubAziendaIdRegoleAdmin();
+    if (!client || !workhubUtenteSupabasePresente() || !aziendaId) return;
+
+    workhubSalvataggioRegoleInCorso = true;
+    try {
+      workhubNormalizzaRegoleAdminPrimaSync();
+      const righe = datiAmministratore.regoleOrari
+        .map(workhubPayloadRegolaAdmin)
+        .filter(r => r.azienda_id && /^\d{4}-\d{2}-\d{2}$/.test(r.dal) && /^\d{4}-\d{2}-\d{2}$/.test(r.al));
+
+      let ultimoErrore = null;
+      const tabelle = workhubTabellaRegoleAdminOk
+        ? [workhubTabellaRegoleAdminOk].concat(WORKHUB_TABELLE_REGOLE_ADMIN.filter(t => t !== workhubTabellaRegoleAdminOk))
+        : WORKHUB_TABELLE_REGOLE_ADMIN;
+
+      for (const tabella of tabelle) {
+        const esito = await workhubProvaSalvaRegoleAdminInTabella(client, tabella, aziendaId, righe);
+        if (esito.ok) {
+          try { if (typeof supabaseStato === "function") supabaseStato("Regole orario amministratore salvate anche online."); } catch (_) {}
+          return;
+        }
+        ultimoErrore = esito.error;
+      }
+
+      if (ultimoErrore) {
+        console.warn("Regole orario amministratore non salvate online:", ultimoErrore.message);
+        try {
+          if (typeof supabaseStato === "function") {
+            supabaseStato("Regole salvate in questo browser, ma non online: manca la tabella regole_orari_amministratore oppure le policy Supabase non permettono il salvataggio.", true);
+          }
+        } catch (_) {}
+      }
+    } finally {
+      workhubSalvataggioRegoleInCorso = false;
+    }
+  }
+
+  window.workhubCaricaRegoleOrariAdminSupabase = workhubCaricaRegoleOrariAdminSupabase;
+  window.workhubSalvaRegoleOrariAdminSupabase = workhubSalvaRegoleOrariAdminSupabase;
+
+  if (typeof supabaseCaricaDati === "function" && !supabaseCaricaDati.__workhubRegoleAdminSupabaseV92) {
+    const supabaseCaricaDatiPrimaRegoleAdmin = supabaseCaricaDati;
+    const patchCaricaDati = async function () {
+      const risultato = await supabaseCaricaDatiPrimaRegoleAdmin.apply(this, arguments);
+      await workhubCaricaRegoleOrariAdminSupabase();
+      return risultato;
+    };
+    patchCaricaDati.__workhubRegoleAdminSupabaseV92 = true;
+    try { supabaseCaricaDati = patchCaricaDati; } catch (_) {}
+    window.supabaseCaricaDati = patchCaricaDati;
+  }
+
+  if (typeof salvaDatiAmministratoreStorage === "function" && !salvaDatiAmministratoreStorage.__workhubRegoleAdminSupabaseV92) {
+    const salvaDatiAmministratoreStoragePrimaRegoleAdmin = salvaDatiAmministratoreStorage;
+    const patchSalvaStorageAdmin = function () {
+      const risultato = salvaDatiAmministratoreStoragePrimaRegoleAdmin.apply(this, arguments);
+      workhubSalvaRegoleOrariAdminSupabase();
+      return risultato;
+    };
+    patchSalvaStorageAdmin.__workhubRegoleAdminSupabaseV92 = true;
+    try { salvaDatiAmministratoreStorage = patchSalvaStorageAdmin; } catch (_) {}
+    window.salvaDatiAmministratoreStorage = patchSalvaStorageAdmin;
+  }
+})();
