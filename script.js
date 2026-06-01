@@ -574,9 +574,14 @@ const STORAGE_KEY = "ore_collaboratori_v1";
       cantiere = testoPulito(cantiere);
       if (!cantiere) return;
       if (!vociMenu.cantiereStato) vociMenu.cantiereStato = {};
-      vociMenu.cantiereStato[cantiere] = stato === "terminato" ? "terminato" : "attivo";
+
+      const nuovoStato = stato === "terminato" ? "terminato" : "attivo";
+      vociMenu.cantiereStato[cantiere] = nuovoStato;
+      vistaCantieri = nuovoStato === "terminato" ? "terminati" : "attivi";
+
       salvaVociMenu();
       aggiornaMenuTendina();
+      aggiornaVociVisibili();
       renderizza();
     }
 
@@ -778,6 +783,90 @@ const STORAGE_KEY = "ore_collaboratori_v1";
       return { nome: "oltre 60 km", importo: 37 };
     }
 
+    /*
+      Regola giornaliera corretta:
+      1 collaboratore + 1 data = massimo 1 trasferta e 1 AVS.
+      Se nello stesso giorno ci sono piu righe, piu lavorazioni, regie o piu cantieri,
+      il cantiere di riferimento e quello con piu ore totali nella giornata.
+    */
+    function creaRegoleGiornaliereUniche(righe) {
+      const gruppi = {};
+
+      (Array.isArray(righe) ? righe : []).forEach((riga, indice) => {
+        const data = String(riga.data || "senza-data");
+        const collaboratore = testoPulito(riga.collaboratore || "Senza collaboratore");
+        const chiave = `${collaboratore}||${data}`;
+        const cantiere = testoPulito(riga.cantiere || "Senza cantiere");
+        const oreRiga = Number(riga.totaleOre || 0);
+        const kmRiga = Number(riga.km || 0);
+
+        if (!gruppi[chiave]) {
+          gruppi[chiave] = {
+            chiave,
+            collaboratore,
+            data,
+            oreTotali: 0,
+            righe: [],
+            cantieri: {}
+          };
+        }
+
+        const gruppo = gruppi[chiave];
+        gruppo.oreTotali += oreRiga;
+        gruppo.righe.push(riga);
+
+        if (!gruppo.cantieri[cantiere]) {
+          gruppo.cantieri[cantiere] = {
+            nome: cantiere,
+            ore: 0,
+            km: kmRiga,
+            primaRigaIndice: indice,
+            righe: []
+          };
+        }
+
+        const infoCantiere = gruppo.cantieri[cantiere];
+        infoCantiere.ore += oreRiga;
+        infoCantiere.km = Math.max(Number(infoCantiere.km || 0), kmRiga);
+        infoCantiere.righe.push(riga);
+      });
+
+      return Object.values(gruppi).map(gruppo => {
+        const principale = Object.values(gruppo.cantieri).sort((a, b) => {
+          const perOre = Number(b.ore || 0) - Number(a.ore || 0);
+          if (perOre) return perOre;
+          const perKm = Number(b.km || 0) - Number(a.km || 0);
+          if (perKm) return perKm;
+          return Number(a.primaRigaIndice || 0) - Number(b.primaRigaIndice || 0);
+        })[0] || { nome: "Senza cantiere", ore: 0, km: 0, righe: [] };
+
+        const km = Number(principale.km || 0);
+        const fascia = fasciaKm(km);
+
+        return {
+          collaboratore: gruppo.collaboratore,
+          data: gruppo.data,
+          cantiere: principale.nome,
+          zona: zonaTrasferta(principale.nome) || principale.nome,
+          ore: Number(gruppo.oreTotali || 0),
+          oreCantierePrincipale: Number(principale.ore || 0),
+          km,
+          fascia: fascia.nome,
+          importo: fascia.importo,
+          avs: km <= 10 ? "Sì" : "No",
+          righe: gruppo.righe,
+          cantieri: Object.values(gruppo.cantieri).map(c => c.nome).sort()
+        };
+      });
+    }
+
+    function regolaGiornalieraPerRiga(riga, regole) {
+      const collaboratore = testoPulito(riga && riga.collaboratore || "Senza collaboratore");
+      const data = String(riga && riga.data || "senza-data");
+      return (Array.isArray(regole) ? regole : creaRegoleGiornaliereUniche([riga]))
+        .find(regola => regola.collaboratore === collaboratore && regola.data === data) || null;
+    }
+
     function aggiornaRegolaTrasferta() {
       const box = document.getElementById("regolaTrasferta");
       if (!box) return;
@@ -958,6 +1047,7 @@ const STORAGE_KEY = "ore_collaboratori_v1";
       document.getElementById("collaboratore").value = "";
       if (resetData) document.getElementById("data").value = formattaDataLocale(new Date());
       document.getElementById("cantiere").value = "";
+      // Ripristino corretto: l'inserimento ore non prende piu l'orario dalle regole amministratore.
       document.getElementById("inizio").value = "07:30";
       document.getElementById("fine").value = "17:00";
       document.getElementById("pausa").value = "1";
@@ -1397,10 +1487,16 @@ const STORAGE_KEY = "ore_collaboratori_v1";
     function creaTagVoci(tipo) {
       let valori = normalizzaListaVoci(vociMenu[tipo] || []);
       if (tipo === "cantieri") {
-        valori = cantieriTutti();
+        valori = cantieriTutti().filter(nome => {
+          const stato = statoCantiere(nome);
+          return vistaCantieri === "terminati" ? stato === "terminato" : stato !== "terminato";
+        });
       }
       if (tipo === "collaboratori") {
-        valori = collaboratoriTutti();
+        valori = collaboratoriTutti().filter(nome => {
+          const stato = statoCollaboratore(nome);
+          return vistaOperai === "terminati" ? stato === "terminato" : stato !== "terminato";
+        });
       }
 
       if (!valori.length && tipo === "cantieri") {
@@ -1450,9 +1546,10 @@ const STORAGE_KEY = "ore_collaboratori_v1";
 
     function renderTotali(righe) {
       const oreTot = somma(righe, "totaleOre");
-      const trasferteTot = righe.reduce((tot, r) => tot + fasciaKm(Number(r.km || 0)).importo, 0);
-      const giorniAVSSi = righe.filter(x => Number(x.km || 0) <= 10).length;
-      const giorniAVSNo = righe.filter(x => Number(x.km || 0) > 10).length;
+      const regoleGiornaliere = creaRegoleGiornaliereUniche(righe);
+      const trasferteTot = regoleGiornaliere.reduce((tot, r) => tot + Number(r.importo || 0), 0);
+      const giorniAVSSi = regoleGiornaliere.filter(x => Number(x.km || 0) <= 10).length;
+      const giorniAVSNo = regoleGiornaliere.filter(x => Number(x.km || 0) > 10).length;
 
       document.getElementById("totali").innerHTML = `
         <div class="total-box">Ore totali<strong>${oreTot.toFixed(2)}</strong></div>
@@ -2484,10 +2581,11 @@ ${descrizione}`)) return;
       }).join("");
 
       const totalePeriodo = righe.reduce((tot, r) => tot + Number(r.totaleOre || 0), 0);
-      const totaleTrasfertePeriodo = righe.reduce((tot, r) => tot + fasciaKm(Number(r.km || 0)).importo, 0);
-      const totaleGiorniCantiere = righe.length;
-      const totaleAVSSi = righe.filter(r => Number(r.km || 0) <= 10).length;
-      const totaleAVSNo = righe.filter(r => Number(r.km || 0) > 10).length;
+      const regoleGiornaliere = creaRegoleGiornaliereUniche(righe);
+      const totaleTrasfertePeriodo = regoleGiornaliere.reduce((tot, r) => tot + Number(r.importo || 0), 0);
+      const totaleGiorniCantiere = regoleGiornaliere.length;
+      const totaleAVSSi = regoleGiornaliere.filter(r => Number(r.km || 0) <= 10).length;
+      const totaleAVSNo = regoleGiornaliere.filter(r => Number(r.km || 0) > 10).length;
       const testoPeriodoCalendario = `${dal ? fmtData(dal) : "inizio"} - ${al ? fmtData(al) : "fine"}`;
       const notaOrariCalendario = `Periodo conteggiato: ${escapeHtml(testoPeriodoCalendario)}.`;
       const riepilogoRegoleOrari = testoRegoleOrariNelPeriodo(dal, al);
@@ -2563,8 +2661,8 @@ ${descrizione}`)) return;
         "oltre 60 km": { nome: "oltre 60 km", importo: 37, giorni: 0, totale: 0 }
       };
 
-      righe.forEach(r => {
-        const fascia = fasciaKm(Number(r.km || 0));
+      creaRegoleGiornaliereUniche(righe).forEach(regola => {
+        const fascia = fasciaKm(Number(regola.km || 0));
         if (!fasce[fascia.nome]) {
           fasce[fascia.nome] = { nome: fascia.nome, importo: fascia.importo, giorni: 0, totale: 0 };
         }
@@ -2659,14 +2757,33 @@ ${descrizione}`)) return;
             giorniAVSNo: 0
           };
         }
-        const fasciaRiga = fasciaKm(Number(r.km || 0));
         perCantiere[cantiere].ore += Number(r.totaleOre || 0);
+      });
+
+      creaRegoleGiornaliereUniche(righe).forEach(regola => {
+        const cantiere = regola.cantiere || "Senza cantiere";
+        if (!perCantiere[cantiere]) {
+          const fascia = fasciaKm(Number(regola.km || 0));
+          perCantiere[cantiere] = {
+            ore: 0,
+            giorni: 0,
+            km: Number(regola.km || 0),
+            zona: regola.zona || zonaTrasferta(cantiere),
+            fascia: fascia.nome,
+            importoGiorno: fascia.importo,
+            totaleTrasferte: 0,
+            giorniAVSSi: 0,
+            giorniAVSNo: 0
+          };
+        }
+        const fasciaRegola = fasciaKm(Number(regola.km || 0));
         perCantiere[cantiere].giorni += 1;
-        perCantiere[cantiere].km = Number(r.km || perCantiere[cantiere].km || 0);
-        perCantiere[cantiere].fascia = fasciaKm(perCantiere[cantiere].km).nome;
-        perCantiere[cantiere].importoGiorno = fasciaKm(perCantiere[cantiere].km).importo;
-        perCantiere[cantiere].totaleTrasferte += fasciaRiga.importo;
-        if (Number(r.km || 0) <= 10) perCantiere[cantiere].giorniAVSSi += 1;
+        perCantiere[cantiere].km = Number(regola.km || perCantiere[cantiere].km || 0);
+        perCantiere[cantiere].zona = regola.zona || zonaTrasferta(cantiere);
+        perCantiere[cantiere].fascia = fasciaRegola.nome;
+        perCantiere[cantiere].importoGiorno = fasciaRegola.importo;
+        perCantiere[cantiere].totaleTrasferte += Number(regola.importo || 0);
+        if (Number(regola.km || 0) <= 10) perCantiere[cantiere].giorniAVSSi += 1;
         else perCantiere[cantiere].giorniAVSNo += 1;
       });
 
@@ -2694,7 +2811,12 @@ ${descrizione}`)) return;
           `;
         }).join("");
 
-      const righeDettaglio = righe.map(r => `
+      const regoleDettaglio = creaRegoleGiornaliereUniche(righe);
+      const righeDettaglio = righe.map(r => {
+        const regola = regolaGiornalieraPerRiga(r, regoleDettaglio);
+        const cantiereRiga = r.cantiere || "Senza cantiere";
+        const conteggiata = regola && regola.cantiere === cantiereRiga;
+        return `
         <tr>
           <td>${fmtData(r.data)}</td>
           <td>${escapeHtml(r.cantiere)}</td>
@@ -2702,11 +2824,12 @@ ${descrizione}`)) return;
           <td>${escapeHtml(r.lavoro || "")}</td>
           <td>${escapeHtml(r.nota || "")}</td>
           <td>${Number(r.km || 0).toFixed(1)}</td>
-          <td>${Number(r.km || 0) <= 10 ? "Sì" : "No"}</td>
-          <td>CHF ${fasciaKm(Number(r.km || 0)).importo.toFixed(2)}</td>
+          <td>${conteggiata && regola ? regola.avs : "-"}</td>
+          <td>${conteggiata && regola ? "CHF " + Number(regola.importo || 0).toFixed(2) : "-"}</td>
           <td><strong>${Number(r.totaleOre || 0).toFixed(2)}</strong></td>
         </tr>
-      `).join("");
+      `;
+      }).join("");
 
       const tabellaGiorniOrizzontali = creaTabellaCollaboratoreGiorniOrizzontali(righe, dal, al);
 
@@ -3022,41 +3145,49 @@ ${descrizione}`)) return;
       const nomePulito = collaboratore.replace(/[^a-z0-9_-]+/gi, "_").toLowerCase();
       a.href = url;
       a.download = `raccolta_ore_${nomePulito}_${dal || "inizio"}_${al || "fine"}.html`;
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      /* Stampa dal file generato, senza mostrare la raccolta dentro l'app principale. */
+      const iframe = document.createElement("iframe");
+      iframe.setAttribute("aria-hidden", "true");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      iframe.style.opacity = "0";
+      iframe.src = url;
+      iframe.onload = function () {
+        setTimeout(function () {
+          try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+          } catch (errore) {
+            console.warn("Stampa raccolta collaboratore non riuscita:", errore);
+          }
+          setTimeout(function () {
+            try { iframe.remove(); } catch (_) {}
+            try { URL.revokeObjectURL(url); } catch (_) {}
+          }, 6000);
+        }, 250);
+      };
+      document.body.appendChild(iframe);
     }
 
     function creaTrasferteUnichePerZona(righe) {
-      const mappa = {};
-      righe.forEach(r => {
-        const cantiere = r.cantiere || "Senza cantiere";
-        const zona = zonaTrasferta(cantiere) || cantiere;
-        const data = r.data || "senza-data";
-        const chiave = `${data}||${zona}`;
-        const km = Number(r.km || 0);
-        const fascia = fasciaKm(km);
-        if (!mappa[chiave]) {
-          mappa[chiave] = {
-            data,
-            zona,
-            km,
-            fascia: fascia.nome,
-            importo: fascia.importo,
-            cantieri: new Set()
-          };
-        }
-        mappa[chiave].cantieri.add(cantiere);
-        if (km > Number(mappa[chiave].km || 0)) {
-          const fasciaMax = fasciaKm(km);
-          mappa[chiave].km = km;
-          mappa[chiave].fascia = fasciaMax.nome;
-          mappa[chiave].importo = fasciaMax.importo;
-        }
-      });
-
-      return Object.values(mappa).map(item => ({
-        ...item,
-        cantieri: Array.from(item.cantieri).sort()
+      return creaRegoleGiornaliereUniche(righe).map(regola => ({
+        data: regola.data,
+        collaboratore: regola.collaboratore,
+        zona: regola.zona,
+        km: regola.km,
+        fascia: regola.fascia,
+        importo: regola.importo,
+        cantiere: regola.cantiere,
+        cantieri: Array.isArray(regola.cantieri) ? regola.cantieri : [regola.cantiere].filter(Boolean)
       }));
     }
 
@@ -3559,7 +3690,7 @@ ${descrizione}`)) return;
 
       workhubSalvaPreferenzeAccesso();
 
-      const ruoloSceltoLogin = String(localStorage.getItem("workhub_login_ruolo_visuale") || "admin").toLowerCase();
+      const ruoloSceltoLogin = "auto"; // Accesso automatico: email + password aprono Admin o Operaio in base al profilo online.
       supabaseStato("Accesso in corso...");
 
       const { data, error } = await client.auth.signInWithPassword({ email, password });
@@ -3584,7 +3715,7 @@ ${descrizione}`)) return;
       const ruoloProfilo = String(profilo.ruolo || "").toLowerCase();
       const profiloAdmin = ruoloProfilo === "admin" || ruoloProfilo === "amministratore" || ruoloProfilo === "administrator";
 
-      if (ruoloSceltoLogin === "admin" && !profiloAdmin) {
+      if (false && ruoloSceltoLogin === "admin" && !profiloAdmin) {
         await client.auth.signOut();
         supabaseUtente = null;
         supabaseProfilo = null;
@@ -3596,7 +3727,7 @@ ${descrizione}`)) return;
         return;
       }
 
-      if (ruoloSceltoLogin === "dipendente" && profiloAdmin) {
+      if (false && ruoloSceltoLogin === "dipendente" && profiloAdmin) {
         await client.auth.signOut();
         supabaseUtente = null;
         supabaseProfilo = null;
@@ -4325,7 +4456,7 @@ ${descrizione}`)) return;
       document.getElementById("loginRuoloAdmin")?.classList.toggle("attivo", ruoloPulito === "admin");
       document.getElementById("loginRuoloDipendente")?.classList.toggle("attivo", ruoloPulito === "dipendente");
       const btn = document.getElementById("workhubAccediBtn");
-      if (btn) btn.textContent = ruoloPulito === "admin" ? "↪ Accedi come Admin" : "↪ Accedi come Dipendente";
+      if (btn) btn.textContent = "↪ Accedi";
     }
 
     function workhubMostraAccesso(tipo) {
@@ -4337,8 +4468,15 @@ ${descrizione}`)) return;
 
     function workhubTogglePassword() {
       const input = document.getElementById("supabasePassword");
+      const btn = document.getElementById("workhubPasswordEye");
       if (!input) return;
-      input.type = input.type === "password" ? "text" : "password";
+      const mostra = input.type === "password";
+      input.type = mostra ? "text" : "password";
+      if (btn) {
+        btn.textContent = mostra ? "🙈" : "👁️";
+        btn.setAttribute("aria-label", mostra ? "Nascondi password" : "Mostra password");
+        btn.setAttribute("aria-pressed", mostra ? "true" : "false");
+      }
     }
 
 
@@ -4597,7 +4735,8 @@ ${descrizione}`)) return;
       if (!lavoro) { alert("Scegli la tipologia di lavoro."); return; }
       if (!oreQuick || oreQuick <= 0) { alert("Inserisci le ore da segnare."); return; }
 
-      const oggi = dataIsoOggi();
+      const oggi = document.getElementById("collabAppDataInput")?.value || dataIsoOggi();
+      const regolaAdminQuick = typeof regolaOrarioPerGiorno === "function" ? regolaOrarioPerGiorno(oggi) : null;
       document.getElementById("collaboratore").value = nome;
       document.getElementById("data").value = oggi;
       document.getElementById("cantiere").value = cantiere;
@@ -6193,4 +6332,987 @@ ${descrizione}`)) return;
     tpInstallaPatch();
     tpRenderListaModifica();
   };
+})();
+
+/* === WORKHUB FUSIONE ANALISI ECONOMICA CANTIERE V1 === */
+(function () {
+  "use strict";
+
+  const MAT_KEY = "workhub_materiali_cantiere_v1";
+  const PREV_KEY = "workhub_preventivi_cantiere_v1";
+  const COSTI_KEY = "workhub_costi_ora_analisi_v1";
+  const ATTIVO_KEY = "workhub_cantiere_attivo_analisi_v1";
+  const ID_MAP_KEY = "workhub_cantieri_id_mappa_v1";
+
+  const VOCI = [
+    { key: "INTONACO", label: "INTONACO", costo: 60, parole: ["intonaco", "intonaci", "rasatura intonaco", "mazzette intonaco"] },
+    { key: "GESSO", label: "GESSO", costo: 60, parole: ["gesso", "gessatura", "stabilitura", "rasatura gesso"] },
+    { key: "CARTONGESSO", label: "CARTONGESSO", costo: 60, parole: ["cartongesso", "cartongessi", "lastra", "lastre", "parete", "soffitto", "ribasso", "controsoffitto"] },
+    { key: "ISOLAZIONE", label: "ISOLAZIONE", costo: 60, parole: ["isolazione", "isolamento", "cappotto", "lana", "eps", "xps", "pannello isolante"] },
+    { key: "PITTURA", label: "PITTURA", costo: 60, parole: ["pittura", "tinteggio", "imbiancatura", "vernice", "verniciatura", "finitura"] },
+    { key: "FACCIATE_VENTILATE", label: "FACCIATE VENTILATE", costo: 60, parole: ["facciata ventilata", "facciate ventilate", "ventilata", "sottostruttura", "rivestimento facciata"] },
+    { key: "PAVIMENTO_TECNICO", label: "PAVIMENTO TECNICO", costo: 60, parole: ["pavimento tecnico", "pavimenti tecnici", "pavimento flottante", "flottante"] },
+    { key: "REGIA", label: "REGIA", costo: 60, parole: ["regia", "ore regia", "a regia"] },
+    { key: "DIVIDI", label: "DIVIDI", costo: 20, parole: ["dividi", "divisione", "ripartizione", "aiuto"] }
+  ];
+
+  function pulito(v) { return String(v == null ? "" : v).trim(); }
+  function chiave(v) { return pulito(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim(); }
+  function chCantiere(v) { return chiave(v).replace(/\s+/g, "_"); }
+  function n(v) { const x = Number(v); return Number.isFinite(x) ? x : 0; }
+  function money(v) { return n(v).toLocaleString("it-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function oreFmt(v) { return n(v).toLocaleString("it-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function esc(s) { return pulito(s).replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c])); }
+  function attr(s) { return esc(s); }
+
+  function leggiJson(key, fallback) {
+    try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (_) { return fallback; }
+  }
+  function scriviJson(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) {} }
+
+  function listaOre() {
+    if (Array.isArray(window.ore)) return window.ore;
+    try { if (typeof ore !== "undefined" && Array.isArray(ore)) return ore; } catch (_) {}
+    return leggiJson("ore_collaboratori_v1", []);
+  }
+  function menu() {
+    if (window.vociMenu && typeof window.vociMenu === "object") return window.vociMenu;
+    try { if (typeof vociMenu !== "undefined" && vociMenu && typeof vociMenu === "object") return vociMenu; } catch (_) {}
+    return leggiJson("voci_menu_ore_collaboratori_v1", { cantieri: [], lavori: [] });
+  }
+
+  function leggiMappaId() { return leggiJson(ID_MAP_KEY, {}); }
+  function idCantiereAuto(nome) {
+    const mappa = leggiMappaId();
+    return mappa[chCantiere(nome)] || mappa[chiave(nome)] || "";
+  }
+
+  function cantieriDisponibili() {
+    const m = menu();
+    const valori = [];
+    if (Array.isArray(m.cantieri)) valori.push(...m.cantieri);
+    listaOre().forEach(r => { if (r && r.cantiere) valori.push(r.cantiere); });
+    return Array.from(new Map(valori.map(x => [chiave(x), pulito(x)])).values()).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  }
+
+  function cantiereAttivo() {
+    const salvato = pulito(localStorage.getItem(ATTIVO_KEY));
+    if (salvato) return salvato;
+    const sel = document.getElementById("workhubAnalisiCantiereSel");
+    if (sel && sel.value) return sel.value;
+    return cantieriDisponibili()[0] || "";
+  }
+
+  function metaLavoroLocale(lavoro) {
+    try {
+      if (typeof window.workhubMetaLavoro === "function") {
+        const meta = window.workhubMetaLavoro(lavoro);
+        if (meta && (meta.reparto || meta.id)) return meta;
+      }
+    } catch (_) {}
+    try {
+      if (typeof workhubMetaLavoro === "function") {
+        const meta = workhubMetaLavoro(lavoro);
+        if (meta && (meta.reparto || meta.id)) return meta;
+      }
+    } catch (_) {}
+    return { id: "", reparto: "" };
+  }
+
+  function voceDaLavoro(lavoro, riga) {
+    const reparto = pulito(riga && riga.lavoro_reparto) || pulito(metaLavoroLocale(lavoro).reparto);
+    const testo = chiave([lavoro, reparto, riga && riga.lavoro_id].join(" "));
+    for (const v of VOCI) {
+      if (chiave(v.label) === chiave(reparto)) return v.key;
+      if (v.parole.some(p => testo.includes(chiave(p)))) return v.key;
+    }
+    const id = Number((riga && riga.lavoro_id) || metaLavoroLocale(lavoro).id || 0);
+    const daId = { 1:"INTONACO", 2:"GESSO", 3:"CARTONGESSO", 4:"ISOLAZIONE", 5:"PITTURA", 6:"FACCIATE_VENTILATE", 7:"PAVIMENTO_TECNICO", 8:"REGIA", 9:"DIVIDI" };
+    return daId[id] || "REGIA";
+  }
+
+  function materiali() { return Array.isArray(leggiJson(MAT_KEY, [])) ? leggiJson(MAT_KEY, []) : []; }
+  function preventivi() { const p = leggiJson(PREV_KEY, {}); return p && typeof p === "object" ? p : {}; }
+  function costiOra() {
+    const salvati = leggiJson(COSTI_KEY, {});
+    const res = {};
+    VOCI.forEach(v => { res[v.key] = n(salvati[v.key] || v.costo); });
+    return res;
+  }
+  function salvaCostiOra(obj) { scriviJson(COSTI_KEY, obj || {}); }
+
+  function ensureSoloButton() {
+    if (document.getElementById("workhubEconomicaSoloBtn")) return;
+
+    const toolbar = document.createElement("div");
+    toolbar.id = "workhubEconomicaToolbarBtn";
+    toolbar.className = "workhub-econ-toolbar solo-admin no-print";
+    toolbar.innerHTML = `
+      <button type="button" id="workhubEconomicaSoloBtn" class="workhub-econ-main-btn">
+        📊 Analisi economica cantiere
+        <small>Apri direttamente la pagina con solo analisi</small>
+      </button>
+    `;
+
+    const main = document.querySelector("main");
+    const grid = document.querySelector(".grid");
+    if (main) {
+      if (grid && grid.parentNode === main) main.insertBefore(toolbar, grid);
+      else main.insertBefore(toolbar, main.firstChild);
+    } else {
+      document.body.appendChild(toolbar);
+    }
+
+    const btn = document.getElementById("workhubEconomicaSoloBtn");
+    if (btn) btn.onclick = function () { window.workhubEconomicaApriSolo(); };
+  }
+
+  window.workhubEconomicaApriSolo = function () {
+    ensureUi();
+    document.body.classList.add("workhub-economica-solo");
+    try { render(); } catch (_) {}
+    setTimeout(function () {
+      const card = document.getElementById("workhubAnalisiEconomicaCard");
+      if (card && card.scrollIntoView) card.scrollIntoView({ block: "start" });
+      else window.scrollTo(0, 0);
+    }, 0);
+  };
+
+  window.workhubEconomicaChiudiSolo = function () {
+    document.body.classList.remove("workhub-economica-solo");
+  };
+
+  function ensureUi() {
+    ensureSoloButton();
+    if (document.getElementById("workhubAnalisiEconomicaCard")) return;
+    const grid = document.querySelector(".grid") || document.querySelector("main");
+    if (!grid) return;
+    const card = document.createElement("section");
+    card.id = "workhubAnalisiEconomicaCard";
+    card.className = "card workhub-economica-card solo-admin";
+    card.innerHTML = `
+      <div class="workhub-econ-head no-print">
+        <div>
+          <h2>Analisi economica cantiere</h2>
+          <p class="note">Le ore inserite dagli operai entrano automaticamente qui con ID cantiere e lavorazione. Materiali e preventivo completano il margine.</p>
+        </div>
+        <div class="workhub-econ-head-actions">
+          <button type="button" onclick="workhubEconomicaApriSolo()">Apri solo analisi</button>
+          <button type="button" class="secondary workhub-econ-close-solo" onclick="workhubEconomicaChiudiSolo()">Chiudi vista solo</button>
+        </div>
+      </div>
+
+      <div class="workhub-econ-top no-print">
+        <div>
+          <label for="workhubAnalisiCantiereSel">Cantiere attivo</label>
+          <select id="workhubAnalisiCantiereSel" onchange="workhubEconomicaCambiaCantiere(this.value)"></select>
+        </div>
+        <div>
+          <label for="workhubCostoOraGenerale">Costo ora generale CHF</label>
+          <input id="workhubCostoOraGenerale" type="number" min="0" step="0.05" value="60" onchange="workhubEconomicaAggiornaCostoGenerale(this.value)" />
+        </div>
+        <button type="button" onclick="workhubEconomicaStampa()">Stampa</button>
+      </div>
+
+      <div class="workhub-econ-grid no-print">
+        <div class="workhub-econ-box">
+          <h3>Inserimento materiali</h3>
+          <div class="workhub-econ-form4">
+            <input id="workhubMatData" type="date" />
+            <input id="workhubMatNome" placeholder="Materiale" />
+            <select id="workhubMatTipo"></select>
+            <input id="workhubMatCosto" type="number" min="0" step="0.05" placeholder="Costo CHF" />
+          </div>
+          <button type="button" class="secondary" onclick="workhubEconomicaAggiungiMateriale()">Inserimento materiali</button>
+        </div>
+        <div class="workhub-econ-box">
+          <h3>Preventivo complessivo cantiere</h3>
+          <p class="note">Scegli se usare una cifra generale del cantiere senza dividerla sulle lavorazioni oppure inserire un preventivo per singola tipologia.</p>
+          <div class="workhub-econ-form2">
+            <input id="workhubPreventivoTotale" type="number" min="0" step="0.05" placeholder="Preventivo totale cantiere CHF" />
+            <button type="button" onclick="workhubEconomicaSalvaPreventivo()">Salva preventivo generale</button>
+          </div>
+          <label for="workhubPreventivoModo">Scelta preventivo</label>
+          <select id="workhubPreventivoModo" onchange="workhubEconomicaSalvaPreventivo(false); workhubEconomicaAggiornaModoPreventivoUi()">
+            <option value="generale">Cifra generale, senza specificare lavorazioni</option>
+            <option value="voci">Preventivo diviso per singola tipologia</option>
+          </select>
+          <p class="note" id="workhubPreventivoModoNota">La cifra generale resta solo nel totale cantiere e non viene distribuita sulle lavorazioni.</p>
+          <details class="workhub-econ-details" id="workhubPreventiviVociDetails"><summary>Opzionale: preventivo per singola tipologia</summary><div id="workhubPreventiviVoci" class="workhub-preventivi-voci"></div></details>
+        </div>
+      </div>
+
+      <div class="workhub-econ-table-wrap">
+        <table class="workhub-econ-table" id="workhubTabellaEconomica"></table>
+      </div>
+
+      <div class="workhub-econ-subgrid">
+        <div class="workhub-econ-box">
+          <h3>Analisi ore e utili collaboratori</h3>
+          <p class="note">Ore per operaio e quota utile ripartita in base alle ore del cantiere selezionato.</p>
+          <div class="workhub-econ-scroll"><table id="workhubTabellaCollaboratoriEconomica"></table></div>
+        </div>
+        <div class="workhub-econ-box">
+          <h3>Lavorazioni registrate</h3>
+          <div class="workhub-econ-scroll"><table id="workhubTabellaLavorazioniEconomica"></table></div>
+        </div>
+      </div>
+
+      <div class="workhub-econ-subgrid">
+        <div class="workhub-econ-box">
+          <h3>Ore imputate</h3>
+          <button type="button" class="secondary small no-print" onclick="workhubEconomicaToggleOre()" id="workhubToggleOreBtn">Mostra</button>
+          <div class="workhub-econ-scroll workhub-ore-dettaglio" id="workhubOreDettaglio" style="display:none;"><table id="workhubTabellaOreImputate"></table></div>
+        </div>
+        <div class="workhub-econ-box">
+          <h3>Materiali</h3>
+          <div class="workhub-econ-scroll"><table id="workhubTabellaMaterialiEconomica"></table></div>
+        </div>
+      </div>
+    `;
+    if (grid.classList && grid.classList.contains("grid")) card.style.gridColumn = "1 / -1";
+    grid.appendChild(card);
+  }
+
+  function fillControls() {
+    ensureUi();
+    const cantSel = document.getElementById("workhubAnalisiCantiereSel");
+    if (cantSel) {
+      const attivo = cantiereAttivo();
+      const cantieri = cantieriDisponibili();
+      cantSel.innerHTML = cantieri.length
+        ? cantieri.map(c => '<option value="' + attr(c) + '">' + esc((idCantiereAuto(c) ? idCantiereAuto(c) + " - " : "") + c) + '</option>').join("")
+        : '<option value="">Nessun cantiere</option>';
+      if (attivo && cantieri.some(c => chiave(c) === chiave(attivo))) cantSel.value = cantieri.find(c => chiave(c) === chiave(attivo));
+    }
+    const tipo = document.getElementById("workhubMatTipo");
+    if (tipo && !tipo.dataset.filled) {
+      tipo.innerHTML = VOCI.map(v => '<option value="' + attr(v.key) + '">' + esc(v.label) + '</option>').join("");
+      tipo.dataset.filled = "1";
+    }
+    const data = document.getElementById("workhubMatData");
+    if (data && !data.value) data.value = new Date().toISOString().slice(0,10);
+    const costi = costiOra();
+    const cg = document.getElementById("workhubCostoOraGenerale");
+    if (cg && !cg.dataset.userTouched) cg.value = String(costi.INTONACO || 60);
+    renderPreventiviInputs();
+  }
+
+  function righeCantiere(cantiere) {
+    const key = chiave(cantiere);
+    return listaOre().filter(r => chiave(r && r.cantiere) === key);
+  }
+
+  function analisi(cantiere) {
+    const costi = costiOra();
+    const preventivo = preventivi()[chCantiere(cantiere)] || { totale: 0, voci: {}, modo: "generale" };
+    const dati = {};
+    VOCI.forEach(v => dati[v.key] = { voce: v, ore: 0, costoOra: costi[v.key] || v.costo, oreChf: 0, materiale: 0, preventivo: n(preventivo.voci && preventivo.voci[v.key]), margine: 0, perc: 0 });
+
+    righeCantiere(cantiere).forEach(r => {
+      const key = voceDaLavoro(r.lavoro || "", r);
+      if (!dati[key]) return;
+      dati[key].ore += n(r.totaleOre);
+    });
+    VOCI.forEach(v => dati[v.key].oreChf = dati[v.key].ore * dati[v.key].costoOra);
+
+    materiali().filter(m => chiave(m.cantiere) === chiave(cantiere)).forEach(m => {
+      const key = m.tipo && dati[m.tipo] ? m.tipo : voceDaLavoro(m.tipo || m.materiale || "", null);
+      if (dati[key]) dati[key].materiale += n(m.costo);
+    });
+
+    const sommaPreventiviVoci = VOCI.reduce((s, v) => s + n(dati[v.key].preventivo), 0);
+    const modo = preventivo.modo || (sommaPreventiviVoci ? "voci" : "generale");
+    const totalePreventivo = modo === "voci" ? sommaPreventiviVoci : n(preventivo.totale);
+
+    // Importante: il preventivo generale NON viene piu' distribuito sulle lavorazioni.
+    // Le colonne delle singole tipologie prendono importi solo se inseriti nel dettaglio per voce.
+    VOCI.forEach(v => {
+      const d = dati[v.key];
+      d.margine = d.preventivo ? (d.preventivo - d.oreChf - d.materiale) : 0;
+      d.perc = d.preventivo ? (d.margine / d.preventivo * 100) : 0;
+    });
+
+    const totali = VOCI.reduce((acc, v) => {
+      const d = dati[v.key];
+      acc.ore += d.ore; acc.oreChf += d.oreChf; acc.materiale += d.materiale;
+      return acc;
+    }, { ore: 0, oreChf: 0, materiale: 0, preventivo: 0, margine: 0 });
+    totali.preventivo = totalePreventivo || sommaPreventiviVoci;
+    totali.margine = totali.preventivo - totali.oreChf - totali.materiale;
+    totali.perc = totali.preventivo ? totali.margine / totali.preventivo * 100 : 0;
+    return { dati, totali, preventivo };
+  }
+
+  function renderPreventiviInputs() {
+    const cantiere = cantiereAttivo();
+    const p = preventivi()[chCantiere(cantiere)] || { totale: 0, voci: {}, modo: "generale" };
+    const totale = document.getElementById("workhubPreventivoTotale");
+    if (totale && document.activeElement !== totale) totale.value = p.totale ? String(p.totale) : "";
+    const modo = document.getElementById("workhubPreventivoModo");
+    if (modo && document.activeElement !== modo) modo.value = p.modo || "generale";
+    const box = document.getElementById("workhubPreventiviVoci");
+    if (!box) return;
+    box.innerHTML = VOCI.map(v => `
+      <label>${esc(v.label)}<input data-voce-preventivo="${attr(v.key)}" type="number" min="0" step="0.05" value="${attr(p.voci && p.voci[v.key] ? p.voci[v.key] : "")}" placeholder="CHF" onchange="workhubEconomicaSalvaPreventivo(false)" /></label>
+    `).join("");
+    workhubEconomicaAggiornaModoPreventivoUi();
+  }
+
+  window.workhubEconomicaAggiornaModoPreventivoUi = function () {
+    const modo = document.getElementById("workhubPreventivoModo")?.value || "generale";
+    const nota = document.getElementById("workhubPreventivoModoNota");
+    const dettagli = document.getElementById("workhubPreventiviVociDetails");
+    if (nota) nota.textContent = modo === "generale"
+      ? "La cifra generale resta solo nel totale cantiere e non viene distribuita sulle lavorazioni."
+      : "In questa modalita' l'utile viene calcolato usando solo gli importi inseriti per le singole tipologie.";
+    if (dettagli && modo === "voci") dettagli.open = true;
+  };
+
+  function render() {
+    ensureUi();
+    fillControls();
+    const cantiere = cantiereAttivo();
+    const idAuto = idCantiereAuto(cantiere);
+    const a = analisi(cantiere);
+    renderEconomicaTable(a, cantiere, idAuto);
+    renderCollaboratori(a, cantiere);
+    renderLavorazioni(cantiere);
+    renderOreImputate(cantiere, idAuto);
+    renderMateriali(cantiere);
+  }
+
+  function renderEconomicaTable(a, cantiere, idAuto) {
+    const t = document.getElementById("workhubTabellaEconomica");
+    if (!t) return;
+    const head = '<tr><th>' + esc(idAuto ? idAuto + " - " + cantiere : cantiere || "Cantiere") + '</th>' + VOCI.map(v => '<th class="econ-head econ-' + v.key + '">' + esc(v.label) + '</th>').join("") + '<th>TOTALE CANTIERE</th></tr>';
+    const row = (label, getter, totale, cls) => '<tr class="' + (cls || "") + '"><td><strong>' + esc(label) + '</strong></td>' + VOCI.map(v => '<td class="econ-' + v.key + '">' + getter(a.dati[v.key], v) + '</td>').join("") + '<td><strong>' + totale + '</strong></td></tr>';
+    t.innerHTML = head +
+      row("Ore operai", d => oreFmt(d.ore), oreFmt(a.totali.ore), "") +
+      row("Costo ora", d => '<input class="workhub-costo-ora-voce" type="number" min="0" step="0.05" value="' + attr(d.costoOra) + '" onchange="workhubEconomicaAggiornaCostoVoce(\'' + attr(d.voce.key) + '\', this.value)" />', money(a.totali.ore ? a.totali.oreChf / a.totali.ore : 0), "") +
+      row("Totale ore CHF", d => money(d.oreChf), money(a.totali.oreChf), "econ-total") +
+      row("Materiale CHF", d => money(d.materiale), money(a.totali.materiale), "") +
+      row("Preventivo voce CHF", d => money(d.preventivo), money(a.totali.preventivo), "") +
+      row("Margine voce CHF", d => money(d.margine), money(a.totali.margine), "") +
+      row("Saldo utile cantiere CHF", d => money(d.margine), money(a.totali.margine), "econ-total") +
+      row("Percentuale margine cantiere", d => oreFmt(d.perc) + "%", oreFmt(a.totali.perc) + "%", "");
+  }
+
+  function renderCollaboratori(a, cantiere) {
+    const t = document.getElementById("workhubTabellaCollaboratoriEconomica");
+    if (!t) return;
+    const righe = righeCantiere(cantiere);
+    const map = {};
+    righe.forEach(r => {
+      const nome = pulito(r.collaboratore) || "Senza nome";
+      if (!map[nome]) map[nome] = 0;
+      map[nome] += n(r.totaleOre);
+    });
+    const totaleOre = Object.values(map).reduce((s,x)=>s+n(x),0);
+    const utile = a.totali.margine;
+    const rows = Object.keys(map).sort().map(nome => {
+      const oreLav = map[nome];
+      const quota = totaleOre ? utile * oreLav / totaleOre : 0;
+      return '<tr><td>' + esc(nome) + '</td><td>' + oreFmt(oreLav) + '</td><td>' + money(quota) + '</td></tr>';
+    }).join("");
+    t.innerHTML = '<tr><th>Collaboratore</th><th>Ore</th><th>Quota utile CHF</th></tr>' + (rows || '<tr><td colspan="3" class="note">Nessuna ora nel cantiere.</td></tr>') + '<tr class="econ-total"><td><strong>Totale cantiere</strong></td><td><strong>' + oreFmt(totaleOre) + '</strong></td><td><strong>' + money(utile) + '</strong></td></tr>';
+  }
+
+  function renderLavorazioni(cantiere) {
+    const t = document.getElementById("workhubTabellaLavorazioniEconomica");
+    if (!t) return;
+    const righe = righeCantiere(cantiere).slice().sort((a,b)=>String(a.data||"").localeCompare(String(b.data||"")) || String(a.collaboratore||"").localeCompare(String(b.collaboratore||"")));
+    t.innerHTML = '<tr><th>Collaboratore</th><th>Tipo</th><th>Lavorazione</th><th>Ore</th></tr>' + (righe.map(r => {
+      const key = voceDaLavoro(r.lavoro || "", r);
+      const voce = VOCI.find(v => v.key === key);
+      return '<tr><td>' + esc(r.collaboratore) + '</td><td>' + esc(voce ? voce.label : key) + '</td><td>' + esc(r.lavoro) + '</td><td>' + oreFmt(r.totaleOre) + '</td></tr>';
+    }).join("") || '<tr><td colspan="4" class="note">Nessuna lavorazione registrata.</td></tr>');
+  }
+
+  function renderOreImputate(cantiere, idAuto) {
+    const t = document.getElementById("workhubTabellaOreImputate");
+    if (!t) return;
+    const righe = righeCantiere(cantiere).slice().sort((a,b)=>String(b.data||"").localeCompare(String(a.data||"")));
+    t.innerHTML = '<tr><th>Data</th><th>ID cantiere</th><th>Operaio</th><th>Cantiere</th><th>Lavorazione</th><th>Ore</th><th>Costo ora</th><th>Totale CHF</th></tr>' + (righe.map(r => {
+      const key = voceDaLavoro(r.lavoro || "", r);
+      const costo = costiOra()[key] || 60;
+      return '<tr><td>' + esc(r.data) + '</td><td>' + esc(r.cantiere_id_auto || idAuto || idCantiereAuto(r.cantiere)) + '</td><td>' + esc(r.collaboratore) + '</td><td>' + esc(r.cantiere) + '</td><td>' + esc(r.lavoro) + '</td><td>' + oreFmt(r.totaleOre) + '</td><td>' + money(costo) + '</td><td>' + money(n(r.totaleOre) * costo) + '</td></tr>';
+    }).join("") || '<tr><td colspan="8" class="note">Nessuna ora nel cantiere.</td></tr>');
+  }
+
+  function renderMateriali(cantiere) {
+    const t = document.getElementById("workhubTabellaMaterialiEconomica");
+    if (!t) return;
+    const righe = materiali().filter(m => chiave(m.cantiere) === chiave(cantiere)).sort((a,b)=>String(b.data||"").localeCompare(String(a.data||"")));
+    t.innerHTML = '<tr><th>Data</th><th>Materiale</th><th>Tipo</th><th>Costo</th><th class="no-print">Azioni</th></tr>' + (righe.map(m => {
+      const voce = VOCI.find(v => v.key === m.tipo);
+      return '<tr><td>' + esc(m.data) + '</td><td>' + esc(m.materiale) + '</td><td>' + esc(voce ? voce.label : m.tipo) + '</td><td>' + money(m.costo) + '</td><td class="no-print"><button type="button" class="danger small" onclick="workhubEconomicaEliminaMateriale(\'' + attr(m.id) + '\')">Elimina</button></td></tr>';
+    }).join("") || '<tr><td colspan="5" class="note">Nessun materiale inserito.</td></tr>');
+  }
+
+  function arricchisciRigheOre() {
+    const arr = listaOre();
+    let cambiato = false;
+    arr.forEach(r => {
+      if (!r || typeof r !== "object") return;
+      const idAuto = idCantiereAuto(r.cantiere || "");
+      if (idAuto && r.cantiere_id_auto !== idAuto) { r.cantiere_id_auto = idAuto; cambiato = true; }
+      const meta = metaLavoroLocale(r.lavoro || "");
+      if (meta.id && Number(r.lavoro_id || 0) !== Number(meta.id)) { r.lavoro_id = Number(meta.id); cambiato = true; }
+      if (meta.reparto && r.lavoro_reparto !== meta.reparto) { r.lavoro_reparto = meta.reparto; cambiato = true; }
+    });
+    if (cambiato) {
+      try { localStorage.setItem("ore_collaboratori_v1", JSON.stringify(arr)); } catch (_) {}
+    }
+  }
+
+  window.workhubEconomicaCambiaCantiere = function (val) { localStorage.setItem(ATTIVO_KEY, pulito(val)); render(); };
+  window.workhubEconomicaAggiornaCostoGenerale = function (val) {
+    const costi = costiOra();
+    VOCI.forEach(v => { if (v.key !== "DIVIDI") costi[v.key] = n(val); });
+    salvaCostiOra(costi); render();
+  };
+  window.workhubEconomicaAggiornaCostoVoce = function (key, val) { const costi = costiOra(); costi[key] = n(val); salvaCostiOra(costi); render(); };
+  window.workhubEconomicaSalvaPreventivo = function (mostra) {
+    const cantiere = cantiereAttivo();
+    if (!cantiere) return alert("Scegli un cantiere.");
+    const all = preventivi();
+    const voce = all[chCantiere(cantiere)] || { totale: 0, voci: {}, modo: "generale" };
+    voce.totale = n(document.getElementById("workhubPreventivoTotale")?.value || 0);
+    voce.modo = document.getElementById("workhubPreventivoModo")?.value || "generale";
+    voce.voci = voce.voci || {};
+    document.querySelectorAll("[data-voce-preventivo]").forEach(input => { voce.voci[input.dataset.vocePreventivo] = n(input.value || 0); });
+    all[chCantiere(cantiere)] = voce;
+    scriviJson(PREV_KEY, all);
+    render();
+    if (mostra !== false) alert("Preventivo salvato per " + cantiere + ".");
+  };
+  window.workhubEconomicaAggiungiMateriale = function () {
+    const cantiere = cantiereAttivo();
+    if (!cantiere) return alert("Scegli un cantiere.");
+    const materiale = pulito(document.getElementById("workhubMatNome")?.value || "");
+    const costo = n(document.getElementById("workhubMatCosto")?.value || 0);
+    if (!materiale) return alert("Scrivi il materiale.");
+    if (!costo) return alert("Inserisci il costo del materiale.");
+    const arr = materiali();
+    arr.push({ id: "mat_" + Date.now() + "_" + Math.random().toString(16).slice(2), cantiere, data: document.getElementById("workhubMatData")?.value || new Date().toISOString().slice(0,10), materiale, tipo: document.getElementById("workhubMatTipo")?.value || "INTONACO", costo });
+    scriviJson(MAT_KEY, arr);
+    const nome = document.getElementById("workhubMatNome"); if (nome) nome.value = "";
+    const costoEl = document.getElementById("workhubMatCosto"); if (costoEl) costoEl.value = "";
+    render();
+  };
+  window.workhubEconomicaEliminaMateriale = function (id) { scriviJson(MAT_KEY, materiali().filter(m => String(m.id) !== String(id))); render(); };
+  window.workhubEconomicaToggleOre = function () {
+    const box = document.getElementById("workhubOreDettaglio");
+    const btn = document.getElementById("workhubToggleOreBtn");
+    if (!box) return;
+    const show = box.style.display === "none";
+    box.style.display = show ? "block" : "none";
+    if (btn) btn.textContent = show ? "Nascondi" : "Mostra";
+  };
+  window.workhubEconomicaStampa = function () {
+    const card = document.getElementById("workhubAnalisiEconomicaCard");
+    if (!card) return window.print();
+    card.classList.add("workhub-print-economica-attiva");
+    window.print();
+    setTimeout(() => card.classList.remove("workhub-print-economica-attiva"), 500);
+  };
+
+  function patchRenderizza() {
+    try {
+      if (typeof renderizza === "function" && !renderizza.__workhubEconomica) {
+        const originale = renderizza;
+        const patch = function () {
+          const res = originale.apply(this, arguments);
+          setTimeout(function () { try { arricchisciRigheOre(); render(); } catch (e) { console.warn("Analisi economica non aggiornata", e); } }, 0);
+          return res;
+        };
+        patch.__workhubEconomica = true;
+        renderizza = patch;
+      }
+    } catch (_) {}
+    try {
+      if (typeof salvaStorage === "function" && !salvaStorage.__workhubEconomica) {
+        const originaleSalva = salvaStorage;
+        const patchSalva = function () { arricchisciRigheOre(); return originaleSalva.apply(this, arguments); };
+        patchSalva.__workhubEconomica = true;
+        salvaStorage = patchSalva;
+      }
+    } catch (_) {}
+  }
+
+  function avvio() {
+    patchRenderizza();
+    arricchisciRigheOre();
+    render();
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(avvio, 500);
+    setTimeout(avvio, 1500);
+    setTimeout(avvio, 3000);
+  });
+  window.addEventListener("storage", avvio);
+  setTimeout(avvio, 1200);
+})();
+
+
+/* WorkHub Tecnoplafon - regole orario amministratore separate dall'inserimento ore
+   Correzione: le regole dell'amministratore restano nel calendario/raccolta, ma NON compilano piu
+   Inizio, Fine, Pausa o Ore dell'inserimento giornaliero. */
+(function () {
+  window.workhubApplicaRegolaOrarioAInserimento = function () {
+    if (typeof aggiornaAnteprimaOre === 'function') aggiornaAnteprimaOre();
+    return null;
+  };
+  window.workhubAggiornaOreQuickDaRegolaAdmin = function () {
+    return null;
+  };
+})();
+
+/* WorkHub Tecnoplafon - blocco giorno stesso, limite 8.50 e stop festivi/weekend
+   Aggiornamento: il collaboratore puo segnare solo il giorno corrente; nessun inserimento su sabato, domenica o festivi Ticino; limite massimo 8.50 ore per collaboratore al giorno. */
+(function () {
+  if (window.__workhubBloccoGiornoStessoV1) return;
+  window.__workhubBloccoGiornoStessoV1 = true;
+
+  function oggiIso() {
+    if (typeof dataIsoOggi === 'function') return dataIsoOggi();
+    if (typeof formattaDataLocale === 'function') return formattaDataLocale(new Date());
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+  }
+
+  function testo(v) {
+    try { return testoPulito(v); } catch (_) { return String(v == null ? '' : v).trim().replace(/\s+/g, ' '); }
+  }
+
+  function isDataIso(dataIso) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(dataIso || ''));
+  }
+
+  function festivoTicino(dataIso) {
+    if (!isDataIso(dataIso)) return false;
+    try {
+      if (typeof festiviTicinoPerAnno !== 'function') return false;
+      const anno = Number(String(dataIso).slice(0, 4));
+      return festiviTicinoPerAnno(anno).some(f => f && f.data === dataIso);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function motivoGiornoBloccato(dataIso) {
+    if (!isDataIso(dataIso)) return 'data non valida';
+    const d = new Date(String(dataIso) + 'T00:00:00');
+    const giorno = d.getDay();
+    if (giorno === 6) return 'sabato';
+    if (giorno === 0) return 'domenica';
+    if (festivoTicino(dataIso)) return 'giorno festivo';
+    return '';
+  }
+
+  function utenteCollaboratoreBlocco() {
+    try { if (typeof utenteCorrenteECollaboratore === 'function' && utenteCorrenteECollaboratore()) return true; } catch (_) {}
+    try { if (typeof supabaseUtenteCollaboratore === 'function' && supabaseUtenteCollaboratore()) return true; } catch (_) {}
+    const ruolo = String(localStorage.getItem('ruolo_utente_ore') || '').toLowerCase();
+    if (ruolo === 'collaboratore' || ruolo === 'operaio' || ruolo === 'dipendente') return true;
+    return document.body && document.body.classList && (
+      document.body.classList.contains('vista-collaboratore') ||
+      document.body.classList.contains('workhub-auth-collaboratore')
+    );
+  }
+
+  function bloccoDataCollaboratore(dataIso, mostraMessaggio) {
+    const oggi = oggiIso();
+    if (String(dataIso || '') === oggi) return true;
+    if (mostraMessaggio) {
+      alert(
+        'Tracciamento ore obbligatorio nel giorno stesso.\n\n' +
+        'Il collaboratore puo salvare solo la data di oggi: ' + oggi + '.\n' +
+        'Non si possono segnare ore arretrate o future.'
+      );
+    }
+    return false;
+  }
+
+  function bloccoGiornoLavorativo(dataIso, mostraMessaggio) {
+    const motivo = motivoGiornoBloccato(dataIso);
+    if (!motivo) return true;
+    if (mostraMessaggio) {
+      alert(
+        'Non si possono segnare ore in questo giorno.\n\n' +
+        'La data ' + dataIso + ' e ' + motivo + '.\n' +
+        'Sono bloccati sabato, domenica e giorni festivi.'
+      );
+    }
+    return false;
+  }
+
+  function totaleOreLocaleTutti(collaboratore, dataIso, idEscluso) {
+    try {
+      const nome = testo(collaboratore);
+      return (Array.isArray(ore) ? ore : [])
+        .filter(r => testo(r.collaboratore) === nome && r.data === dataIso && (!idEscluso || r.id !== idEscluso))
+        .reduce((tot, r) => tot + Number(r.totaleOre || 0), 0);
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  window.workhubValidaBloccoGiornoELimite = function (collaboratore, dataIso, oreDaAggiungere, idEscluso, mostraMessaggio) {
+    const data = String(dataIso || '');
+    if (utenteCollaboratoreBlocco() && !bloccoDataCollaboratore(data, mostraMessaggio !== false)) return false;
+    if (!bloccoGiornoLavorativo(data, mostraMessaggio !== false)) return false;
+
+    const limite = Number(window.LIMITE_ORE_GIORNO_COLLABORATORE || (typeof LIMITE_ORE_GIORNO_COLLABORATORE !== 'undefined' ? LIMITE_ORE_GIORNO_COLLABORATORE : 8.5));
+    const gia = totaleOreLocaleTutti(collaboratore, data, idEscluso || null);
+    const aggiunta = Number(oreDaAggiungere || 0);
+    const nuovoTotale = gia + aggiunta;
+    if (nuovoTotale <= limite + 0.001) return true;
+
+    if (mostraMessaggio !== false) {
+      alert(
+        'Limite ore giornaliero superato.\n\n' +
+        'Massimo consentito: ' + limite.toFixed(2) + ' ore al giorno.\n' +
+        'Ore gia inserite: ' + gia.toFixed(2) + '\n' +
+        'Ore che stai inserendo: ' + aggiunta.toFixed(2) + '\n' +
+        'Totale: ' + nuovoTotale.toFixed(2) + ' ore'
+      );
+    }
+    return false;
+  };
+
+  if (typeof collaboratorePuoSalvareData === 'function') {
+    const vecchiaCollaboratorePuoSalvareData = collaboratorePuoSalvareData;
+    window.collaboratorePuoSalvareData = function (dataIso) {
+      if (utenteCollaboratoreBlocco()) return String(dataIso || '') === oggiIso();
+      return vecchiaCollaboratorePuoSalvareData.apply(this, arguments);
+    };
+  }
+
+  if (typeof collaboratoreRispettaLimiteOreGiorno === 'function') {
+    window.collaboratoreRispettaLimiteOreGiorno = function (collaboratore, dataIso, oreDaAggiungere, idEscluso, mostraMessaggio) {
+      return window.workhubValidaBloccoGiornoELimite(collaboratore, dataIso, oreDaAggiungere, idEscluso, mostraMessaggio);
+    };
+  }
+
+  const salvaOraPrecedente = window.salvaOra;
+  if (typeof salvaOraPrecedente === 'function') {
+    window.salvaOra = async function () {
+      const collaboratore = document.getElementById('collaboratore')?.value || '';
+      const data = document.getElementById('data')?.value || '';
+      let totale = 0;
+      try { totale = typeof calcolaTotaleOreDaForm === 'function' ? calcolaTotaleOreDaForm() : 0; } catch (_) { totale = 0; }
+      const idCorrente = (typeof editId !== 'undefined') ? editId : null;
+      if (!window.workhubValidaBloccoGiornoELimite(collaboratore, data, totale, idCorrente, true)) return false;
+      return await salvaOraPrecedente.apply(this, arguments);
+    };
+  }
+
+  const collabQuickSalvaPrecedente = window.collabQuickSalva;
+  if (typeof collabQuickSalvaPrecedente === 'function') {
+    window.collabQuickSalva = async function () {
+      const oggi = oggiIso();
+      const dataInput = document.getElementById('collabAppDataInput');
+      if (dataInput && dataInput.value !== oggi) dataInput.value = oggi;
+      const nome = (typeof collabQuickNomeUtente === 'function') ? collabQuickNomeUtente() : (document.getElementById('collabAppNomeInput')?.value || '');
+      const oreQuick = Number(document.getElementById('collabQuickOre')?.value || 0);
+      if (!window.workhubValidaBloccoGiornoELimite(nome, oggi, oreQuick, null, true)) return false;
+      return await collabQuickSalvaPrecedente.apply(this, arguments);
+    };
+  }
+
+  function aggiornaBlocchiCampi() {
+    const oggi = oggiIso();
+    const collabData = document.getElementById('collabAppDataInput');
+    if (collabData) {
+      collabData.value = oggi;
+      collabData.min = oggi;
+      collabData.max = oggi;
+      collabData.readOnly = true;
+      collabData.title = 'Il collaboratore puo segnare solo il giorno corrente';
+    }
+
+    const oreQuick = document.getElementById('collabQuickOre');
+    if (oreQuick) {
+      oreQuick.max = '8.5';
+      oreQuick.step = '0.25';
+      oreQuick.placeholder = 'Massimo 8.50 ore al giorno';
+    }
+
+    const oreManuali = document.getElementById('oreManuali');
+    if (oreManuali) {
+      oreManuali.max = '8.5';
+      oreManuali.step = '0.25';
+      if (!oreManuali.placeholder || oreManuali.placeholder.includes('8.5')) {
+        oreManuali.placeholder = 'Massimo 8.50 ore al giorno';
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    setTimeout(aggiornaBlocchiCampi, 200);
+    setTimeout(aggiornaBlocchiCampi, 1000);
+  });
+  window.addEventListener('load', function () { setTimeout(aggiornaBlocchiCampi, 300); });
+})();
+
+
+/* WorkHub Tecnoplafon - correzione verde bottoni e separazione orario admin V2
+   - Il verde dei bottoni operai torna subito dopo il salvataggio.
+   - Le regole orario amministratore non modificano piu le ore da segnare.
+   - Restano attivi: giorno stesso, limite 8.50, stop sabato/domenica/festivi. */
+(function () {
+  if (window.__workhubFixVerdeNoRegolaAdminV2) return;
+  window.__workhubFixVerdeNoRegolaAdminV2 = true;
+
+  window.workhubApplicaRegolaOrarioAInserimento = function () {
+    if (typeof aggiornaAnteprimaOre === 'function') aggiornaAnteprimaOre();
+    return null;
+  };
+  window.workhubAggiornaOreQuickDaRegolaAdmin = function () { return null; };
+
+  function oggiIsoFix() {
+    if (typeof dataIsoOggi === 'function') return dataIsoOggi();
+    if (typeof formattaDataLocale === 'function') return formattaDataLocale(new Date());
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function normalizzaNomeFix(v) {
+    try { return testoPulito(v); } catch (_) { return String(v == null ? '' : v).trim().replace(/\s+/g, ' '); }
+  }
+
+  function aggiornaVerdeBottoniFix() {
+    try {
+      const oggi = oggiIsoFix();
+      const controllo = document.getElementById('controlloGiorno');
+      if (controllo && !controllo.value) controllo.value = oggi;
+      if (typeof renderOperaiSinistra === 'function') renderOperaiSinistra();
+      if (typeof collabQuickRenderOggi === 'function') collabQuickRenderOggi();
+      if (typeof renderizza === 'function') {
+        // Non chiamare sempre renderizza qui per evitare cicli: renderOperaiSinistra basta per i bottoni verdi.
+      }
+    } catch (errore) {
+      console.warn('Aggiornamento verde bottoni non riuscito:', errore);
+    }
+  }
+
+  // Rende piu robusto il controllo verde: confronta i nomi puliti, non solo stringhe identiche.
+  if (typeof creaDatiOperaiPerGiorno === 'function' && !creaDatiOperaiPerGiorno.__workhubNomePulitoV2) {
+    const originaleCreaDati = creaDatiOperaiPerGiorno;
+    const patch = function (nomi, giorno) {
+      try {
+        return (Array.isArray(nomi) ? nomi : []).map(function (nome) {
+          const nomePulito = normalizzaNomeFix(nome);
+          const righe = (Array.isArray(ore) ? ore : []).filter(function (r) {
+            return normalizzaNomeFix(r.collaboratore) === nomePulito && String(r.data || '') === String(giorno || '');
+          });
+          return {
+            nome: nome,
+            righe: righe,
+            oreTotali: righe.reduce(function (tot, r) { return tot + Number(r.totaleOre || 0); }, 0),
+            cantieri: Array.from(new Set(righe.map(function (r) { return r.cantiere; }).filter(Boolean)))
+          };
+        });
+      } catch (_) {
+        return originaleCreaDati.apply(this, arguments);
+      }
+    };
+    patch.__workhubNomePulitoV2 = true;
+    try { creaDatiOperaiPerGiorno = patch; } catch (_) {}
+    window.creaDatiOperaiPerGiorno = patch;
+  }
+
+  if (typeof salvaOra === 'function' && !salvaOra.__workhubRefreshVerdeV2) {
+    const salvaPrima = salvaOra;
+    const salvaPatch = async function () {
+      const risultato = await salvaPrima.apply(this, arguments);
+      setTimeout(aggiornaVerdeBottoniFix, 60);
+      setTimeout(aggiornaVerdeBottoniFix, 350);
+      return risultato;
+    };
+    salvaPatch.__workhubRefreshVerdeV2 = true;
+    try { salvaOra = salvaPatch; } catch (_) {}
+    window.salvaOra = salvaPatch;
+  }
+
+  if (typeof collabQuickSalva === 'function' && !collabQuickSalva.__workhubNoRegolaAdminRefreshV2) {
+    const quickPrima = collabQuickSalva;
+    const quickPatch = async function () {
+      // Non precompilare da regola admin. Il collaboratore scrive le ore reali, max 8.50.
+      const risultato = await quickPrima.apply(this, arguments);
+      setTimeout(aggiornaVerdeBottoniFix, 80);
+      setTimeout(aggiornaVerdeBottoniFix, 500);
+      return risultato;
+    };
+    quickPatch.__workhubNoRegolaAdminRefreshV2 = true;
+    try { collabQuickSalva = quickPatch; } catch (_) {}
+    window.collabQuickSalva = quickPatch;
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    setTimeout(aggiornaVerdeBottoniFix, 500);
+    setTimeout(aggiornaVerdeBottoniFix, 1600);
+  });
+  window.addEventListener('load', function () { setTimeout(aggiornaVerdeBottoniFix, 700); });
+})();
+
+
+/* WorkHub Tecnoplafon - orario amministratore visibile nell'app collaboratore V3
+   - Mostra nell'app lo stesso orario previsto salvato nelle regole amministratore.
+   - L'orario e solo informativo: non compila e non forza le ore da segnare.
+   - Restano attivi: limite 8.50, giorno stesso, blocco sabato/domenica/festivi e verde sui bottoni. */
+(function () {
+  if (window.__workhubOrarioAdminVisibileAppV3) return;
+  window.__workhubOrarioAdminVisibileAppV3 = true;
+
+  function oggiAppIso() {
+    if (typeof dataIsoOggi === 'function') return dataIsoOggi();
+    if (typeof formattaDataLocale === 'function') return formattaDataLocale(new Date());
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function dataAppCorrente() {
+    const input = document.getElementById('collabAppDataInput');
+    return (input && input.value) ? input.value : oggiAppIso();
+  }
+
+  function pausaBella(valore) {
+    if (typeof formattaPausaBreve === 'function') return formattaPausaBreve(valore);
+    const n = Number(valore || 0);
+    if (!Number.isFinite(n)) return String(valore || '0') + ' h';
+    return n.toFixed(2).replace(/\.00$/, '') + ' h';
+  }
+
+  function escapeSafe(v) {
+    if (typeof escapeHtml === 'function') return escapeHtml(v);
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);
+    });
+  }
+
+  function testoMotivoBloccoGiorno(dataIso) {
+    try {
+      if (typeof motivoGiornoBloccato === 'function') return motivoGiornoBloccato(dataIso) || '';
+    } catch (_) {}
+    try {
+      const d = new Date(String(dataIso || '') + 'T00:00:00');
+      const g = d.getDay();
+      if (g === 6) return 'sabato';
+      if (g === 0) return 'domenica';
+    } catch (_) {}
+    return '';
+  }
+
+  function htmlOrarioAdminApp(dataIso) {
+    const data = dataIso || dataAppCorrente();
+    const regola = (typeof regolaOrarioPerGiorno === 'function') ? regolaOrarioPerGiorno(data) : null;
+    const motivo = testoMotivoBloccoGiorno(data);
+    if (!regola) {
+      return '<div class="workhub-orario-admin-app vuoto">' +
+        '<div class="workhub-orario-admin-label">Orario previsto amministratore</div>' +
+        '<div class="workhub-orario-admin-testo">Nessuna regola orario salvata per oggi.</div>' +
+        '<div class="workhub-orario-admin-note">Le ore si inseriscono manualmente, massimo 8.50 al giorno.</div>' +
+        '</div>';
+    }
+
+    const nota = regola.nota ? '<div class="workhub-orario-admin-note">' + escapeSafe(regola.nota) + '</div>' : '';
+    const blocco = motivo
+      ? '<div class="workhub-orario-admin-avviso">Oggi risulta ' + escapeSafe(motivo) + ': il salvataggio ore resta bloccato.</div>'
+      : '<div class="workhub-orario-admin-note">Orario mostrato come riferimento. Le ore lavorate si segnano manualmente.</div>';
+
+    return '<div class="workhub-orario-admin-app">' +
+      '<div class="workhub-orario-admin-label">Orario previsto amministratore</div>' +
+      '<div class="workhub-orario-admin-grid">' +
+        '<div><span>Inizio</span><strong>' + escapeSafe(regola.inizio || '') + '</strong></div>' +
+        '<div><span>Fine</span><strong>' + escapeSafe(regola.fine || '') + '</strong></div>' +
+        '<div><span>Pausa</span><strong>' + escapeSafe(pausaBella(regola.pausa)) + '</strong></div>' +
+      '</div>' + nota + blocco +
+      '</div>';
+  }
+
+  function assicuraBoxOrarioAdminApp() {
+    const homeCard = document.querySelector('#collabHomeScreen .collab-home-card .collab-simple-head');
+    if (homeCard && !document.getElementById('workhubOrarioAdminAppHome')) {
+      const div = document.createElement('div');
+      div.id = 'workhubOrarioAdminAppHome';
+      div.className = 'workhub-orario-admin-wrap';
+      homeCard.insertAdjacentElement('afterend', div);
+    }
+
+    const viewHead = document.querySelector('#collabViewOre .collab-app-view-head');
+    if (viewHead && !document.getElementById('workhubOrarioAdminAppOre')) {
+      const div = document.createElement('div');
+      div.id = 'workhubOrarioAdminAppOre';
+      div.className = 'workhub-orario-admin-wrap';
+      viewHead.insertAdjacentElement('afterend', div);
+    }
+
+    const startData = document.getElementById('collabAppDataInput');
+    if (startData && !document.getElementById('workhubOrarioAdminAppStart')) {
+      const div = document.createElement('div');
+      div.id = 'workhubOrarioAdminAppStart';
+      div.className = 'workhub-orario-admin-wrap';
+      startData.insertAdjacentElement('afterend', div);
+    }
+  }
+
+  window.workhubAggiornaOrarioAdminVisibileApp = function () {
+    assicuraBoxOrarioAdminApp();
+    const data = dataAppCorrente();
+    ['workhubOrarioAdminAppHome', 'workhubOrarioAdminAppOre', 'workhubOrarioAdminAppStart'].forEach(function (id) {
+      const box = document.getElementById(id);
+      if (box) box.innerHTML = htmlOrarioAdminApp(data);
+    });
+  };
+
+  const inputData = function () {
+    const el = document.getElementById('collabAppDataInput');
+    if (el && !el.__workhubOrarioAdminListenerV3) {
+      el.__workhubOrarioAdminListenerV3 = true;
+      el.addEventListener('change', window.workhubAggiornaOrarioAdminVisibileApp);
+      el.addEventListener('input', window.workhubAggiornaOrarioAdminVisibileApp);
+    }
+  };
+
+  function refreshDopoRender() {
+    setTimeout(function () { inputData(); window.workhubAggiornaOrarioAdminVisibileApp(); }, 60);
+  }
+
+  if (typeof collabQuickAggiornaScelte === 'function' && !collabQuickAggiornaScelte.__workhubOrarioAdminV3) {
+    const prima = collabQuickAggiornaScelte;
+    const patch = function () {
+      const risultato = prima.apply(this, arguments);
+      refreshDopoRender();
+      return risultato;
+    };
+    patch.__workhubOrarioAdminV3 = true;
+    try { collabQuickAggiornaScelte = patch; } catch (_) {}
+    window.collabQuickAggiornaScelte = patch;
+  }
+
+  if (typeof collabAppContinua === 'function' && !collabAppContinua.__workhubOrarioAdminV3) {
+    const primaContinua = collabAppContinua;
+    const patchContinua = function () {
+      const risultato = primaContinua.apply(this, arguments);
+      refreshDopoRender();
+      return risultato;
+    };
+    patchContinua.__workhubOrarioAdminV3 = true;
+    try { collabAppContinua = patchContinua; } catch (_) {}
+    window.collabAppContinua = patchContinua;
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    inputData();
+    setTimeout(window.workhubAggiornaOrarioAdminVisibileApp, 250);
+    setTimeout(window.workhubAggiornaOrarioAdminVisibileApp, 1000);
+  });
+  window.addEventListener('load', function () { setTimeout(window.workhubAggiornaOrarioAdminVisibileApp, 400); });
 })();
