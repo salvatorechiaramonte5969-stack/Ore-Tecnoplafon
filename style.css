@@ -3215,3 +3215,353 @@ body { font-family: Arial, Helvetica, sans-serif; color: #111827; }
   }
   .ricerca-rapida-safe-box input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
   .ricerca-nascosto-safe { display: none !important; }
+
+
+/* WorkHub v3 - apertura solo App/login, ruolo automatico e occhio password */
+body.workhub-auth-login header { display: none !important; }
+body.workhub-auth-login main { max-width: none !important; padding: 0 !important; }
+body.workhub-auth-login .workhub-login-wrap {
+  min-height: 100dvh !important;
+  border-bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+body.workhub-auth-login .grid,
+body.workhub-auth-login #collabQuickPanel,
+body.workhub-auth-login .solo-admin,
+body.workhub-auth-login .operai-panel { display: none !important; }
+body.workhub-auth-login #supabaseLoginBox .workhub-role-switch,
+body.workhub-auth-login #supabaseLoginBox .workhub-access-tabs,
+body.workhub-auth-login #workhubRegisterInfo { display: none !important; }
+#supabaseLoginBox .workhub-password-wrap { position: relative !important; }
+#supabaseLoginBox .workhub-password-wrap input#supabasePassword { padding-right: 64px !important; }
+#supabaseLoginBox .workhub-eye {
+  position: absolute !important;
+  right: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  z-index: 5 !important;
+  font-size: 18px !important;
+  line-height: 1 !important;
+}
+#supabaseLoginBox .workhub-eye:hover { background: #e5e7eb !important; }
+
+/* === WORKHUB FUSIONE ANALISI ECONOMICA CANTIERE V1 === */
+
+.workhub-econ-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.workhub-econ-head h2 { margin-bottom: 4px; }
+.workhub-econ-head .note { margin-top: 0; }
+.workhub-econ-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 230px;
+}
+.workhub-econ-head-actions button {
+  width: auto;
+  min-width: 150px;
+  margin-top: 0;
+}
+
+.workhub-econ-toolbar {
+  margin: 0 0 18px 0;
+  padding: 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #111827, #374151);
+  box-shadow: 0 10px 28px rgba(0,0,0,.16);
+}
+.workhub-econ-main-btn {
+  width: 100%;
+  min-height: 72px;
+  margin: 0;
+  border-radius: 16px;
+  font-size: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  text-align: left;
+  padding: 14px 18px;
+  background: #ffffff;
+  color: #111827;
+}
+.workhub-econ-main-btn small {
+  display: block;
+  font-size: 13px;
+  font-weight: normal;
+  color: #4b5563;
+}
+
+.workhub-econ-close-solo { display: none; }
+.workhub-econ-solo-float {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9998;
+  width: auto;
+  min-width: 170px;
+  border-radius: 999px;
+  padding: 13px 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.22);
+}
+body.workhub-economica-solo header,
+body.workhub-economica-solo .workhub-login-wrap,
+body.workhub-economica-solo #collabQuickPanel,
+body.workhub-economica-solo .grid > :not(#workhubAnalisiEconomicaCard),
+body.workhub-economica-solo #workhubEconomicaToolbarBtn,
+body.workhub-economica-solo #workhubEconomicaSoloBtn {
+  display: none !important;
+}
+body.workhub-economica-solo main {
+  max-width: none !important;
+  padding: 12px !important;
+}
+body.workhub-economica-solo .grid {
+  display: block !important;
+}
+body.workhub-economica-solo #workhubAnalisiEconomicaCard {
+  display: block !important;
+  grid-column: 1 / -1 !important;
+  margin: 0 !important;
+  min-height: calc(100dvh - 24px);
+}
+body.workhub-economica-solo .workhub-econ-close-solo {
+  display: inline-block !important;
+}
+@media (max-width: 700px) {
+  .workhub-econ-head { display: block; }
+  .workhub-econ-head-actions { min-width: 0; justify-content: stretch; }
+  .workhub-econ-head-actions button { width: 100%; }
+  .workhub-econ-solo-float { right: 12px; bottom: 12px; min-width: 150px; }
+}
+.workhub-economica-card {
+  margin-top: 18px;
+  overflow: hidden;
+}
+.workhub-econ-top {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.1fr) minmax(140px, .45fr) minmax(180px, .55fr);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+.workhub-econ-top button { height: 44px; }
+.workhub-econ-grid,
+.workhub-econ-subgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 14px 0;
+}
+.workhub-econ-box {
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+  min-width: 0;
+}
+.workhub-econ-box h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.workhub-econ-form4 {
+  display: grid;
+  grid-template-columns: minmax(120px,.75fr) minmax(150px,1fr) minmax(145px,.9fr) minmax(120px,.75fr);
+  gap: 8px;
+  align-items: center;
+}
+.workhub-econ-form2 {
+  display: grid;
+  grid-template-columns: 1fr minmax(200px,.8fr);
+  gap: 10px;
+  align-items: center;
+}
+.workhub-econ-details {
+  margin-top: 10px;
+}
+.workhub-preventivi-voci {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.workhub-preventivi-voci label {
+  margin: 0;
+  font-size: 12px;
+}
+.workhub-preventivi-voci input {
+  margin-top: 4px;
+}
+.workhub-econ-table-wrap,
+.workhub-econ-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 12px;
+  background: #fff;
+}
+.workhub-econ-table {
+  min-width: 1180px;
+  margin: 0;
+}
+.workhub-econ-scroll table {
+  margin: 0;
+  min-width: 640px;
+}
+.workhub-econ-table th,
+.workhub-econ-table td,
+.workhub-econ-scroll th,
+.workhub-econ-scroll td {
+  white-space: nowrap;
+  text-align: right;
+}
+.workhub-econ-table th:first-child,
+.workhub-econ-table td:first-child,
+.workhub-econ-scroll th:first-child,
+.workhub-econ-scroll td:first-child {
+  text-align: left;
+}
+.workhub-econ-table .econ-head { color: #111827; font-weight: 800; }
+.workhub-econ-table .econ-INTONACO { background: #fff200; }
+.workhub-econ-table .econ-GESSO { background: #00e62e; }
+.workhub-econ-table .econ-CARTONGESSO { background: #b8b8b8; }
+.workhub-econ-table .econ-ISOLAZIONE { background: #ff1e16; color: #fff; }
+.workhub-econ-table .econ-PITTURA { background: #e02bdd; color: #fff; }
+.workhub-econ-table .econ-FACCIATE_VENTILATE { background: #27ced0; }
+.workhub-econ-table .econ-PAVIMENTO_TECNICO { background: #ffda72; }
+.workhub-econ-table .econ-REGIA { background: #cfe0f1; }
+.workhub-econ-table .econ-DIVIDI { background: #96c582; }
+.workhub-econ-table .econ-total td,
+.workhub-econ-scroll .econ-total td {
+  background: #fff200 !important;
+  color: #111827 !important;
+  font-weight: 800;
+}
+.workhub-costo-ora-voce {
+  width: 82px !important;
+  min-width: 72px;
+  padding: 4px 6px !important;
+  text-align: right;
+  border-radius: 6px;
+  background: rgba(255,255,255,.85);
+}
+@media (max-width: 900px) {
+  .workhub-econ-top,
+  .workhub-econ-grid,
+  .workhub-econ-subgrid,
+  .workhub-econ-form2,
+  .workhub-econ-form4 {
+    grid-template-columns: 1fr;
+  }
+  .workhub-preventivi-voci { grid-template-columns: 1fr; }
+}
+@media print {
+  body:has(.workhub-print-economica-attiva) header,
+  body:has(.workhub-print-economica-attiva) .grid > :not(.workhub-print-economica-attiva),
+  body:has(.workhub-print-economica-attiva) .workhub-login-wrap,
+  body:has(.workhub-print-economica-attiva) #collabQuickPanel {
+    display: none !important;
+  }
+  .workhub-print-economica-attiva {
+    display: block !important;
+    grid-column: 1 / -1 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+  .workhub-print-economica-attiva .no-print { display: none !important; }
+  .workhub-econ-table { min-width: 0; font-size: 9px; }
+  .workhub-econ-table th, .workhub-econ-table td { padding: 4px; font-size: 9px; }
+}
+
+
+
+/* Orario amministratore visibile nell'app collaboratore */
+.workhub-orario-admin-wrap {
+  margin: 10px 0 12px;
+}
+.workhub-orario-admin-app {
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  border-radius: 14px;
+  padding: 12px;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.workhub-orario-admin-app.vuoto {
+  border-color: #d1d5db;
+  background: #f9fafb;
+}
+.workhub-orario-admin-label {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #92400e;
+  margin-bottom: 8px;
+}
+.workhub-orario-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.workhub-orario-admin-grid div {
+  background: #ffffff;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 9px 8px;
+  text-align: center;
+}
+.workhub-orario-admin-grid span {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 3px;
+}
+.workhub-orario-admin-grid strong {
+  display: block;
+  font-size: 18px;
+  color: #111827;
+}
+.workhub-orario-admin-note,
+.workhub-orario-admin-testo,
+.workhub-orario-admin-avviso {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #4b5563;
+}
+.workhub-orario-admin-avviso {
+  color: #991b1b;
+  font-weight: 700;
+}
+@media (max-width: 520px) {
+  .workhub-orario-admin-grid {
+    grid-template-columns: 1fr;
+  }
+  .workhub-orario-admin-grid strong {
+    font-size: 17px;
+  }
+}
