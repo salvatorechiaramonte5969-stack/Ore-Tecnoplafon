@@ -9103,6 +9103,188 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
 <\/script>
 
   </div>
+
+  <style id="workhub-v113-pagine-collaboratore-full">
+    /* V113 - Area collaboratore: il bottone apre solo la pagina scelta, senza lasciare il menu sopra. */
+    #collabHomeScreen.workhub-v113-pagina-aperta > .collab-home-card,
+    #collabHomeScreen.workhub-v113-pagina-aperta .collab-home-card {
+      display: none !important;
+    }
+    #collabHomeScreen.workhub-v113-pagina-aperta > .collab-app-view,
+    #collabHomeScreen.workhub-v113-pagina-aperta .collab-app-view {
+      display: none !important;
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+    #collabHomeScreen.workhub-v113-pagina-aperta > .collab-app-view.workhub-v113-attiva,
+    #collabHomeScreen.workhub-v113-pagina-aperta .collab-app-view.workhub-v113-attiva {
+      display: block !important;
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+    #collabHomeScreen.workhub-v113-menu > .collab-home-card,
+    #collabHomeScreen.workhub-v113-menu .collab-home-card {
+      display: block !important;
+    }
+    #collabHomeScreen.workhub-v113-menu > .collab-app-view,
+    #collabHomeScreen.workhub-v113-menu .collab-app-view {
+      display: none !important;
+    }
+    #collabHomeScreen.workhub-v113-pagina-aperta .collab-app-view-head {
+      position: sticky;
+      top: 0;
+      z-index: 6;
+      background: #ffffff;
+      padding: 4px 0 10px;
+    }
+  </style>
+
+  <script id="workhub-v113-pagine-collaboratore-full">
+    /*
+      V113 - Solo navigazione grafica area collaboratore.
+      Non modifica login, Supabase, salvataggi, ore, AVS, trasferte, vacanze o calcoli.
+      Tocco su un bottone = pagina scelta visibile subito, menu nascosto.
+    */
+    (function () {
+      const MAPPA = {
+        ore: "collabViewOre",
+        mese: "collabViewMese",
+        vacanze: "collabViewVacanze",
+        stampa: "collabViewStampa"
+      };
+
+      function home() {
+        return document.getElementById("collabHomeScreen");
+      }
+
+      function aggiornaContenuti(tipo) {
+        try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+        try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
+        try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
+        try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
+        if (tipo === "ore") {
+          setTimeout(function () {
+            try { if (typeof collabQuickMostraSuggerimentiCantiere === "function") collabQuickMostraSuggerimentiCantiere(); } catch (_) {}
+          }, 90);
+        }
+      }
+
+      function vaiInAlto() {
+        const pannello = document.getElementById("collabQuickPanel") || home();
+        try {
+          if (pannello && typeof pannello.scrollIntoView === "function") {
+            pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+          }
+        } catch (_) {}
+        setTimeout(function () {
+          try {
+            if (pannello && typeof pannello.scrollIntoView === "function") {
+              pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+            }
+          } catch (_) {}
+        }, 80);
+      }
+
+      function apriPagina(tipo) {
+        const box = home();
+        const id = MAPPA[tipo] || "";
+        const pagina = id ? document.getElementById(id) : null;
+        if (!box || !pagina) return false;
+
+        box.classList.remove("workhub-v113-menu", "workhub-menu-attivo", "workhub-v112-menu");
+        box.classList.add("workhub-v113-pagina-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+
+        box.querySelectorAll(".collab-app-view").forEach(function (view) {
+          view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v113-attiva");
+          view.style.display = "none";
+        });
+
+        pagina.classList.add("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v113-attiva");
+        pagina.style.display = "block";
+        aggiornaContenuti(tipo);
+        vaiInAlto();
+        return false;
+      }
+
+      function apriMenu() {
+        const box = home();
+        if (!box) return false;
+        box.classList.remove("workhub-v113-pagina-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+        box.classList.add("workhub-v113-menu", "workhub-menu-attivo", "workhub-v112-menu");
+        box.querySelectorAll(".collab-app-view").forEach(function (view) {
+          view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v113-attiva");
+          view.style.display = "none";
+        });
+        vaiInAlto();
+        return false;
+      }
+
+      function tipoDaBottone(btn) {
+        const onclick = String(btn.getAttribute("onclick") || "");
+        const match = onclick.match(/collabAppMostraSezione\(['\"]([^'\"]+)['\"]\)/);
+        if (match && match[1]) return match[1];
+        const testo = String(btn.textContent || "").toLowerCase();
+        if (testo.indexOf("ore") !== -1) return "ore";
+        if (testo.indexOf("mensile") !== -1 || testo.indexOf("mese") !== -1) return "mese";
+        if (testo.indexOf("vacanze") !== -1) return "vacanze";
+        if (testo.indexOf("stampa") !== -1) return "stampa";
+        return "";
+      }
+
+      function installaBottoniDiretti() {
+        document.querySelectorAll(".collab-app-menu-btn").forEach(function (btn) {
+          if (btn.dataset.workhubV113Installato === "1") return;
+          const tipo = tipoDaBottone(btn);
+          if (!tipo) return;
+          btn.dataset.workhubV113Tipo = tipo;
+          btn.dataset.workhubV113Installato = "1";
+          btn.removeAttribute("onclick");
+          btn.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            apriPagina(tipo);
+            return false;
+          }, true);
+        });
+
+        document.querySelectorAll(".collab-back-btn").forEach(function (btn) {
+          if (btn.dataset.workhubV113Installato === "1") return;
+          btn.dataset.workhubV113Installato = "1";
+          btn.removeAttribute("onclick");
+          btn.addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            apriMenu();
+            return false;
+          }, true);
+        });
+      }
+
+      function installa() {
+        installaBottoniDiretti();
+        window.collabAppMostraSezione = function (tipo) { return apriPagina(tipo); };
+        window.collabAppChiudiSezioni = function () { return apriMenu(); };
+        setTimeout(installaBottoniDiretti, 300);
+        setTimeout(installaBottoniDiretti, 1000);
+        setTimeout(function () {
+          const box = home();
+          if (box && !box.classList.contains("workhub-v113-pagina-aperta")) apriMenu();
+        }, 350);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", installa);
+      } else {
+        installa();
+      }
+      window.addEventListener("load", function () { setTimeout(installa, 200); });
+      window.workhubV113ApriPaginaCollaboratore = apriPagina;
+      window.workhubV113ApriMenuCollaboratore = apriMenu;
+    })();
+  </script>
+
 </body>
 </html>`;
 
