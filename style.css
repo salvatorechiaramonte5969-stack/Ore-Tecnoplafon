@@ -3592,3 +3592,30 @@ body.workhub-economica-solo .workhub-econ-close-solo {
 .ricerca-rapida-safe-box input {
   touch-action: manipulation;
 }
+
+
+/* V114 - Area collaboratore: quando si sceglie un bottone, si vede solo la pagina scelta. */
+#collabHomeScreen.pagina-collaboratore-aperta > .collab-home-card {
+  display: none !important;
+}
+#collabHomeScreen.pagina-collaboratore-aperta > .collab-app-view {
+  display: none !important;
+  margin-top: 0 !important;
+}
+#collabHomeScreen.pagina-collaboratore-aperta > .collab-app-view.attiva {
+  display: block !important;
+}
+#collabHomeScreen.menu-collaboratore-aperto > .collab-home-card {
+  display: block !important;
+}
+#collabHomeScreen.menu-collaboratore-aperto > .collab-app-view {
+  display: none !important;
+}
+#collabHomeScreen.pagina-collaboratore-aperta .collab-app-view-head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #ffffff;
+  padding-top: 6px;
+  padding-bottom: 10px;
+}
