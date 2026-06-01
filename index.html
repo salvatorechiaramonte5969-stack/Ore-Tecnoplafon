@@ -8111,7 +8111,562 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
       "<style>" + cssRaccolta() + "</style></head><body>" +
       "<div class=\"print\"><button onclick=\"window.print()\">Stampa questa raccolta</button></div>" +
       htmlInterno +
-      "</body></html>";
+      "
+<!-- WORKHUB FIX REGOLE ORARI ONLINE + APPLICAZIONE INSERIMENTO ORE V100 -->
+<style id="workhub-fix-regole-orari-online-v100-style">
+  #workhubRegoleOrariStatoV100 {
+    margin: 10px 0 0 !important;
+    padding: 10px 12px !important;
+    border: 1px solid #bfdbfe !important;
+    border-radius: 14px !important;
+    background: #eff6ff !important;
+    color: #1e3a8a !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 800 !important;
+  }
+  .workhub-regola-applicata-v100 {
+    display: inline-block !important;
+    margin-top: 6px !important;
+    padding: 4px 8px !important;
+    border-radius: 999px !important;
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    font-weight: 900 !important;
+  }
+</style>
+<script id="workhub-fix-regole-orari-online-v100-script">
+(function () {
+  "use strict";
+  if (window.__workhubRegoleOrariOnlineV100) return;
+  window.__workhubRegoleOrariOnlineV100 = true;
+
+  var KEY = "workhub_regole_orari_admin_v100";
+  var ONLINE_KEY = "regole_orari_amministratore";
+  var MAX_ORE_GIORNO = 8.5;
+  var syncInCorso = false;
+
+  function $(id) { return document.getElementById(id); }
+  function t(v) { return String(v == null ? "" : v).trim(); }
+  function n(v) { var x = Number(String(v == null ? "" : v).replace(",", ".")); return Number.isFinite(x) ? x : 0; }
+  function esc(v) { return t(v).replace(/[&<>\"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]; }); }
+  function oggiIso() { return new Date().toISOString().slice(0, 10); }
+  function minuti(orario) { var m = t(orario).match(/^(\d{1,2}):(\d{2})/); return m ? (Number(m[1]) * 60 + Number(m[2])) : 0; }
+  function fmtOre(v) { return Math.min(MAX_ORE_GIORNO, Math.max(0, n(v))).toFixed(2); }
+
+  function stato(txt, errore) {
+    var el = $("workhubRegoleOrariStatoV100");
+    if (!el) return;
+    el.textContent = txt;
+    el.style.background = errore ? "#fef2f2" : "#eff6ff";
+    el.style.borderColor = errore ? "#fecaca" : "#bfdbfe";
+    el.style.color = errore ? "#991b1b" : "#1e3a8a";
+  }
+
+  function clientSupabase() {
+    try { if (typeof inizializzaSupabase === "function") { var c = inizializzaSupabase(); if (c && typeof c.from === "function") return c; } } catch (_) {}
+    try { if (window.supabaseClient && typeof window.supabaseClient.from === "function") return window.supabaseClient; } catch (_) {}
+    try {
+      if (window.supabase && typeof window.supabase.createClient === "function" && typeof SUPABASE_URL !== "undefined" && typeof SUPABASE_PUBLISHABLE_KEY !== "undefined") {
+        if (!window.__workhubRegoleClientV100) window.__workhubRegoleClientV100 = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+        return window.__workhubRegoleClientV100;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function aziendaId() {
+    try { if (typeof SUPABASE_AZIENDA_ID !== "undefined" && SUPABASE_AZIENDA_ID) return String(SUPABASE_AZIENDA_ID); } catch (_) {}
+    try { return localStorage.getItem("workhub_azienda_id") || localStorage.getItem("azienda_id") || ""; } catch (_) { return ""; }
+  }
+
+  async function sessioneOk(client) {
+    try {
+      if (!client || !client.auth || typeof client.auth.getSession !== "function") return true;
+      var res = await client.auth.getSession();
+      return !!(res && res.data && res.data.session);
+    } catch (_) { return true; }
+  }
+
+  function leggiRegoleLocali() {
+    try {
+      var a = JSON.parse(localStorage.getItem(KEY) || "[]");
+      return Array.isArray(a) ? a.filter(function (r) { return r && r.dal && r.al; }) : [];
+    } catch (_) { return []; }
+  }
+
+  function salvaRegoleLocali(regole) {
+    try { localStorage.setItem(KEY, JSON.stringify(Array.isArray(regole) ? regole : [])); } catch (_) {}
+  }
+
+  function normalizzaRegola(r) {
+    return {
+      id: t(r && r.id) || ("regola_" + Date.now() + "_" + Math.round(Math.random() * 100000)),
+      dal: t(r && r.dal),
+      al: t(r && r.al),
+      nota: t(r && r.nota),
+      inizio: t(r && r.inizio) || "07:30",
+      fine: t(r && r.fine) || "17:00",
+      pausa: Math.max(0, n(r && r.pausa))
+    };
+  }
+
+  function salvaRegole(regole, sincronizzaOnline) {
+    var pulite = (Array.isArray(regole) ? regole : []).map(normalizzaRegola).filter(function (r) { return r.dal && r.al; });
+    pulite.sort(function (a, b) { return String(a.dal).localeCompare(String(b.dal)) || String(a.al).localeCompare(String(b.al)); });
+    salvaRegoleLocali(pulite);
+    renderRegole();
+    applicaRegolaAInserimento(false);
+    if (sincronizzaOnline !== false) salvaRegoleOnline(pulite);
+  }
+
+  function regolaPerData(dataIso) {
+    var d = t(dataIso);
+    if (!d) return null;
+    var regole = leggiRegoleLocali();
+    for (var i = regole.length - 1; i >= 0; i--) {
+      var r = regole[i];
+      if (r.dal <= d && d <= r.al) return r;
+    }
+    return null;
+  }
+
+  function calcolaOreDaCampi() {
+    var manuale = $("oreManuali");
+    if (manuale && t(manuale.value) !== "") {
+      var vm = Math.min(MAX_ORE_GIORNO, Math.max(0, n(manuale.value)));
+      if (n(manuale.value) > MAX_ORE_GIORNO) manuale.value = String(MAX_ORE_GIORNO);
+      return vm;
+    }
+    var inizio = minuti($("inizio") && $("inizio").value);
+    var fine = minuti($("fine") && $("fine").value);
+    var pausa = n($("pausa") && $("pausa").value);
+    var diff = (fine - inizio) / 60 - pausa;
+    return Math.min(MAX_ORE_GIORNO, Math.max(0, diff));
+  }
+
+  function aggiornaAnteprimaV100() {
+    var p = $("anteprimaOre");
+    var ore = calcolaOreDaCampi();
+    var data = ($("data") && $("data").value) || oggiIso();
+    var regola = regolaPerData(data);
+    if (p) {
+      p.innerHTML = "Ore calcolate: " + fmtOre(ore) + (regola ? " <span class=\"workhub-regola-applicata-v100\">regola applicata: " + esc(regola.inizio) + " - " + esc(regola.fine) + " / pausa " + esc(regola.pausa) + "</span>" : "");
+    }
+    return ore;
+  }
+
+  function applicaRegolaAInserimento(forza) {
+    var dataEl = $("data");
+    var data = (dataEl && dataEl.value) || oggiIso();
+    var regola = regolaPerData(data);
+    if (!regola) { aggiornaAnteprimaV100(); return false; }
+
+    var inizio = $("inizio"), fine = $("fine"), pausa = $("pausa");
+    if (inizio && (forza || !inizio.dataset.workhubModificatoManualmente)) inizio.value = regola.inizio || inizio.value;
+    if (fine && (forza || !fine.dataset.workhubModificatoManualmente)) fine.value = regola.fine || fine.value;
+    if (pausa && (forza || !pausa.dataset.workhubModificatoManualmente)) pausa.value = String(regola.pausa || 0);
+    aggiornaAnteprimaV100();
+    return true;
+  }
+
+  function renderRegole() {
+    var tbody = $("tabellaRegoleOrariAmministratore");
+    if (!tbody) return;
+    var regole = leggiRegoleLocali();
+    tbody.innerHTML = regole.length ? regole.map(function (r) {
+      return '<tr>' +
+        '<td>' + esc(r.dal) + '</td>' +
+        '<td>' + esc(r.al) + '</td>' +
+        '<td>' + esc(r.inizio) + '</td>' +
+        '<td>' + esc(r.fine) + '</td>' +
+        '<td>' + esc(r.pausa) + '</td>' +
+        '<td><button type="button" class="danger small" onclick="workhubEliminaRegolaOrarioV100(\'' + esc(r.id) + '\')">Elimina</button></td>' +
+      '</tr>';
+    }).join("") : '<tr><td colspan="6">Nessuna regola orario salvata.</td></tr>';
+  }
+
+  window.workhubEliminaRegolaOrarioV100 = function (id) {
+    var regole = leggiRegoleLocali().filter(function (r) { return r.id !== id; });
+    salvaRegole(regole, true);
+    stato("Regola eliminata e salvata.", false);
+  };
+
+  function aggiungiRegolaV100() {
+    var dal = t($("regolaOrarioDal") && $("regolaOrarioDal").value);
+    var al = t($("regolaOrarioAl") && $("regolaOrarioAl").value) || dal;
+    var inizio = t($("regolaOrarioInizio") && $("regolaOrarioInizio").value) || "07:30";
+    var fine = t($("regolaOrarioFine") && $("regolaOrarioFine").value) || "17:00";
+    var pausa = Math.max(0, n($("regolaOrarioPausa") && $("regolaOrarioPausa").value));
+    var nota = t($("regolaOrarioNota") && $("regolaOrarioNota").value);
+    if (!dal) { alert("Inserisci la data Dal della regola."); return; }
+    if (al < dal) { var tmp = dal; dal = al; al = tmp; }
+    var regole = leggiRegoleLocali();
+    regole.push(normalizzaRegola({ dal: dal, al: al, inizio: inizio, fine: fine, pausa: pausa, nota: nota }));
+    salvaRegole(regole, true);
+    stato("Regola salvata. Ora viene applicata anche in Inizio / Fine / Pausa e resta memorizzata online quando Supabase e' disponibile.", false);
+  }
+
+  async function caricaRegoleOnline() {
+    if (syncInCorso) return;
+    var client = clientSupabase();
+    if (!client || typeof client.from !== "function") return;
+    if (!(await sessioneOk(client))) return;
+    var az = aziendaId();
+    var tabelle = ["impostazioni", "workhub_impostazioni", "settings"];
+    var campi = [
+      { k: "chiave", v: "valore" },
+      { k: "key", v: "value" }
+    ];
+    for (var ti = 0; ti < tabelle.length; ti++) {
+      for (var ci = 0; ci < campi.length; ci++) {
+        try {
+          var q = client.from(tabelle[ti]).select("*").eq(campi[ci].k, ONLINE_KEY).limit(1);
+          if (az) q = q.eq("azienda_id", az);
+          var res = await q;
+          if (res && res.error) continue;
+          var row = res && res.data && res.data[0];
+          if (!row) continue;
+          var valore = row[campi[ci].v];
+          if (typeof valore === "string") valore = JSON.parse(valore);
+          if (valore && Array.isArray(valore.regole)) valore = valore.regole;
+          if (Array.isArray(valore)) {
+            salvaRegole(valore, false);
+            stato("Regole orari caricate dal database online.", false);
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  async function salvaRegoleOnline(regole) {
+    if (syncInCorso) return;
+    var client = clientSupabase();
+    if (!client || typeof client.from !== "function") { stato("Regole salvate nel browser. Per salvarle online serve accesso Supabase attivo.", false); return; }
+    if (!(await sessioneOk(client))) { stato("Regole salvate nel browser. Fai Accedi per salvarle anche online.", false); return; }
+    syncInCorso = true;
+    var az = aziendaId();
+    var tabelle = ["impostazioni", "workhub_impostazioni", "settings"];
+    var campi = [
+      { k: "chiave", v: "valore" },
+      { k: "key", v: "value" }
+    ];
+    var payloadValore = { regole: regole, aggiornato_il: new Date().toISOString() };
+    try {
+      for (var ti = 0; ti < tabelle.length; ti++) {
+        for (var ci = 0; ci < campi.length; ci++) {
+          try {
+            var tabella = tabelle[ti], k = campi[ci].k, v = campi[ci].v;
+            var cerca = client.from(tabella).select("id").eq(k, ONLINE_KEY).limit(1);
+            if (az) cerca = cerca.eq("azienda_id", az);
+            var trovato = await cerca;
+            if (trovato && trovato.error) continue;
+            var dati = {}; dati[k] = ONLINE_KEY; dati[v] = payloadValore; dati.aggiornato_il = new Date().toISOString(); if (az) dati.azienda_id = az;
+            var res;
+            if (trovato && trovato.data && trovato.data[0] && trovato.data[0].id) res = await client.from(tabella).update(dati).eq("id", trovato.data[0].id);
+            else res = await client.from(tabella).insert([dati]);
+            if (res && res.error) continue;
+            stato("Regole salvate anche online.", false);
+            return;
+          } catch (_) {}
+        }
+      }
+      stato("Regole salvate nel browser. Non ho trovato una tabella impostazioni online compatibile.", true);
+    } finally {
+      syncInCorso = false;
+    }
+  }
+
+  function installaStato() {
+    var table = $("tabellaRegoleOrariAmministratore");
+    if (!table || $("workhubRegoleOrariStatoV100")) return;
+    var box = document.createElement("div");
+    box.id = "workhubRegoleOrariStatoV100";
+    box.textContent = "Regole orari pronte: vengono salvate e applicate all'inserimento ore.";
+    var parent = table.closest(".calendar-scroll") || table.parentElement;
+    if (parent) parent.insertAdjacentElement("afterend", box);
+  }
+
+  function avvolgiFunzioni() {
+    if (!window.aggiungiRegolaOrarioAmministratore || !window.aggiungiRegolaOrarioAmministratore.__workhubV100) {
+      var originaleAggiungi = window.aggiungiRegolaOrarioAmministratore;
+      window.aggiungiRegolaOrarioAmministratore = function () {
+        var res;
+        try { if (typeof originaleAggiungi === "function") res = originaleAggiungi.apply(this, arguments); } catch (e) { console.warn(e); }
+        aggiungiRegolaV100();
+        return res;
+      };
+      window.aggiungiRegolaOrarioAmministratore.__workhubV100 = true;
+    }
+
+    if (!window.salvaDatiAmministratore || !window.salvaDatiAmministratore.__workhubV100) {
+      var originaleSalvaAdmin = window.salvaDatiAmministratore;
+      window.salvaDatiAmministratore = function () {
+        var res;
+        try { if (typeof originaleSalvaAdmin === "function") res = originaleSalvaAdmin.apply(this, arguments); } catch (e) { console.warn(e); }
+        salvaRegoleOnline(leggiRegoleLocali());
+        stato("Dati amministratore salvati. Regole orari sincronizzate.", false);
+        return res;
+      };
+      window.salvaDatiAmministratore.__workhubV100 = true;
+    }
+
+    if (!window.aggiornaAnteprimaOre || !window.aggiornaAnteprimaOre.__workhubV100) {
+      var originaleAnteprima = window.aggiornaAnteprimaOre;
+      window.aggiornaAnteprimaOre = function () {
+        var res;
+        try { if (typeof originaleAnteprima === "function") res = originaleAnteprima.apply(this, arguments); } catch (_) {}
+        aggiornaAnteprimaV100();
+        return res;
+      };
+      window.aggiornaAnteprimaOre.__workhubV100 = true;
+    }
+
+    if (!window.salvaOra || !window.salvaOra.__workhubV100) {
+      var originaleSalvaOra = window.salvaOra;
+      window.salvaOra = function () {
+        applicaRegolaAInserimento(false);
+        var manuale = $("oreManuali");
+        if (manuale && t(manuale.value) !== "" && n(manuale.value) > MAX_ORE_GIORNO) manuale.value = String(MAX_ORE_GIORNO);
+        aggiornaAnteprimaV100();
+        return typeof originaleSalvaOra === "function" ? originaleSalvaOra.apply(this, arguments) : undefined;
+      };
+      window.salvaOra.__workhubV100 = true;
+    }
+  }
+
+  function collegaCampi() {
+    ["inizio", "fine", "pausa"].forEach(function (id) {
+      var el = $(id);
+      if (el && !el.__workhubModificatoV100) {
+        el.__workhubModificatoV100 = true;
+        el.addEventListener("input", function () { el.dataset.workhubModificatoManualmente = "1"; aggiornaAnteprimaV100(); });
+      }
+    });
+    ["data", "cantiere", "selectCantiereInserimento"].forEach(function (id) {
+      var el = $(id);
+      if (el && !el.__workhubApplicaRegoleV100) {
+        el.__workhubApplicaRegoleV100 = true;
+        el.addEventListener("change", function () {
+          ["inizio", "fine", "pausa"].forEach(function (cid) { var c = $(cid); if (c) delete c.dataset.workhubModificatoManualmente; });
+          applicaRegolaAInserimento(true);
+        });
+      }
+    });
+    var manuale = $("oreManuali");
+    if (manuale && !manuale.__workhubMaxV100) {
+      manuale.__workhubMaxV100 = true;
+      manuale.setAttribute("max", String(MAX_ORE_GIORNO));
+      manuale.addEventListener("input", aggiornaAnteprimaV100);
+    }
+  }
+
+  function avvia() {
+    installaStato();
+    avvolgiFunzioni();
+    collegaCampi();
+    renderRegole();
+    applicaRegolaAInserimento(false);
+  }
+
+  window.workhubCaricaRegoleOrariOnlineV100 = caricaRegoleOnline;
+  window.workhubSalvaRegoleOrariOnlineV100 = function () { return salvaRegoleOnline(leggiRegoleLocali()); };
+  window.workhubApplicaRegolaOrarioInserimentoV100 = function () { return applicaRegolaAInserimento(true); };
+
+  document.addEventListener("DOMContentLoaded", function () {
+    avvia();
+    setTimeout(avvia, 400);
+    setTimeout(function () { caricaRegoleOnline().then(avvia).catch(function () {}); }, 1200);
+    setTimeout(avvia, 1800);
+  });
+  window.addEventListener("load", function () {
+    avvia();
+    setTimeout(function () { caricaRegoleOnline().then(avvia).catch(function () {}); }, 800);
+    setTimeout(avvia, 2200);
+  });
+})();
+</script>
+
+
+<!-- WORKHUB FIX V102 - PULSANTI COLLABORATORE / DIPENDENTI ROBUSTI -->
+<style id="workhub-fix-v102-style">
+  /* Forza apertura corretta del pannello dipendenti/collaboratori anche se vecchi patch lo richiudono. */
+  body.workhub-auth-admin #gestioneOperaiPanel.workhub-forza-aperto-v102,
+  #gestioneOperaiPanel.workhub-forza-aperto-v102 {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    pointer-events: auto !important;
+  }
+  #toggleGestioneOperaiBtn {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+  }
+</style>
+<script id="workhub-fix-v102-script">
+(function () {
+  if (window.__workhubFixCollaboratoreV102) return;
+  window.__workhubFixCollaboratoreV102 = true;
+
+  function $(id) { return document.getElementById(id); }
+  function txt(v) { return String(v == null ? '' : v).trim(); }
+  function clean(v) {
+    try { if (typeof testoPulito === 'function') return testoPulito(v); } catch (_) {}
+    return txt(v).replace(/\s+/g, ' ');
+  }
+  function key(v) {
+    try { if (typeof chiaveRicerca === 'function') return chiaveRicerca(v); } catch (_) {}
+    return clean(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function setValue(id, valore) {
+    var el = $(id);
+    if (!el) return;
+    el.value = valore || '';
+    try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+    try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
+  }
+
+  function panelOperaiAperto() {
+    var p = $('gestioneOperaiPanel');
+    if (!p) return false;
+    if (p.classList.contains('aperto') || p.classList.contains('workhub-forza-aperto-v102')) return true;
+    try { return getComputedStyle(p).display !== 'none'; } catch (_) { return false; }
+  }
+
+  function apriPannelloOperai() {
+    var p = $('gestioneOperaiPanel');
+    var b = $('toggleGestioneOperaiBtn');
+    if (!p) return;
+    p.classList.add('aperto', 'workhub-forza-aperto-v102');
+    p.style.setProperty('display', 'block', 'important');
+    p.style.setProperty('visibility', 'visible', 'important');
+    p.style.setProperty('opacity', '1', 'important');
+    p.style.setProperty('height', 'auto', 'important');
+    p.style.setProperty('max-height', 'none', 'important');
+    p.style.setProperty('overflow', 'visible', 'important');
+    if (b) b.textContent = 'Nascondi gestione dipendenti';
+    try { if (typeof workhubAggiornaMenuTendinaOperaiV9 === 'function') workhubAggiornaMenuTendinaOperaiV9(); } catch (_) {}
+    try { if (typeof workhubFiltraOperaiAttiviTerminatiStabile === 'function') workhubFiltraOperaiAttiviTerminatiStabile(); } catch (_) {}
+  }
+
+  function chiudiPannelloOperai() {
+    var p = $('gestioneOperaiPanel');
+    var b = $('toggleGestioneOperaiBtn');
+    if (!p) return;
+    p.classList.remove('aperto', 'workhub-forza-aperto-v102');
+    p.style.removeProperty('display');
+    p.style.removeProperty('visibility');
+    p.style.removeProperty('opacity');
+    p.style.removeProperty('height');
+    p.style.removeProperty('max-height');
+    p.style.removeProperty('overflow');
+    if (b) b.textContent = 'Aggiungi dipendente attivo';
+  }
+
+  window.workhubToggleGestioneOperaiV102 = function (ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    if (panelOperaiAperto()) chiudiPannelloOperai();
+    else {
+      apriPannelloOperai();
+      setTimeout(apriPannelloOperai, 80);
+      setTimeout(apriPannelloOperai, 300);
+    }
+    return false;
+  };
+
+  function installaBottoneOperai() {
+    var b = $('toggleGestioneOperaiBtn');
+    if (!b) return;
+    b.onclick = window.workhubToggleGestioneOperaiV102;
+    if (!b.__workhubV102Click) {
+      b.__workhubV102Click = true;
+      b.addEventListener('click', window.workhubToggleGestioneOperaiV102, true);
+    }
+  }
+
+  /* Rende robusto anche il pulsante Scarica/Stampa collaboratore: se il campo nascosto non e' valorizzato,
+     usa la ricerca veloce o trova il nome dalle ore salvate. */
+  function nomiDaOre() {
+    try {
+      if (!Array.isArray(window.ore)) return [];
+      var visto = {};
+      return window.ore.map(function (r) { return clean(r && r.collaboratore); }).filter(function (n) {
+        if (!n) return false;
+        var k = key(n);
+        if (visto[k]) return false;
+        visto[k] = true;
+        return true;
+      });
+    } catch (_) { return []; }
+  }
+  function nomiTutti() {
+    try { if (typeof collaboratoriTutti === 'function') return collaboratoriTutti().map(clean).filter(Boolean); } catch (_) {}
+    return nomiDaOre();
+  }
+  function scegliCollaboratorePerScarico() {
+    var filtro = clean(($('filtroCollaboratore') || {}).value);
+    var ricerca = clean(($('ricercaVeloceCollaboratoreFoglio') || {}).value || ($('workhubRaccoltaCollaboratoreFiltro') || {}).value);
+    if (filtro) return filtro;
+    if (!ricerca) return '';
+    var k = key(ricerca);
+    var nomi = nomiTutti().concat(nomiDaOre());
+    var trovato = nomi.find(function (n) { return key(n) === k; }) ||
+      nomi.find(function (n) { return key(n).indexOf(k) !== -1 || k.indexOf(key(n)) !== -1; });
+    var scelto = trovato || ricerca;
+    setValue('filtroCollaboratore', scelto);
+    setValue('ricercaVeloceCollaboratoreFoglio', scelto);
+    setValue('workhubRaccoltaCollaboratoreFiltro', scelto);
+    try { if (typeof renderizza === 'function') renderizza(); } catch (_) {}
+    return scelto;
+  }
+
+  function patchScaricaCollaboratore() {
+    if (window.scaricaCollaboratore && window.scaricaCollaboratore.__workhubV102) return;
+    var originale = window.scaricaCollaboratore || window.workhubScaricaCollaboratoreFinaleV90;
+    if (typeof originale !== 'function') return;
+    window.scaricaCollaboratore = function (ev) {
+      scegliCollaboratorePerScarico();
+      return originale.apply(this, arguments);
+    };
+    window.scaricaCollaboratore.__workhubV102 = true;
+    window.workhubScaricaCollaboratoreFinaleV102 = window.scaricaCollaboratore;
+
+    document.querySelectorAll('button').forEach(function (btn) {
+      var onclick = String(btn.getAttribute('onclick') || '');
+      var testo = String(btn.textContent || '').toLowerCase();
+      if (onclick.indexOf('scaricaCollaboratore') !== -1 || testo.indexOf('scarica') !== -1 && testo.indexOf('collaboratore') !== -1) {
+        btn.onclick = window.scaricaCollaboratore;
+        btn.setAttribute('onclick', 'scaricaCollaboratore(event)');
+      }
+    });
+  }
+
+  function installa() {
+    installaBottoneOperai();
+    patchScaricaCollaboratore();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    installa();
+    setTimeout(installa, 250);
+    setTimeout(installa, 1000);
+  });
+  window.addEventListener('load', function () {
+    installa();
+    setTimeout(installa, 500);
+    setTimeout(installa, 1500);
+  });
+  setInterval(installa, 1200);
+})();
+</script>
+<!-- FINE WORKHUB FIX V102 -->
+
+</body></html>";
   }
 
   function scaricaBlob(html, nomeFile) {
@@ -8785,6 +9340,561 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
     </tbody>
   </table>
 
+
+<!-- WORKHUB FIX REGOLE ORARI ONLINE + APPLICAZIONE INSERIMENTO ORE V100 -->
+<style id="workhub-fix-regole-orari-online-v100-style">
+  #workhubRegoleOrariStatoV100 {
+    margin: 10px 0 0 !important;
+    padding: 10px 12px !important;
+    border: 1px solid #bfdbfe !important;
+    border-radius: 14px !important;
+    background: #eff6ff !important;
+    color: #1e3a8a !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 800 !important;
+  }
+  .workhub-regola-applicata-v100 {
+    display: inline-block !important;
+    margin-top: 6px !important;
+    padding: 4px 8px !important;
+    border-radius: 999px !important;
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    font-weight: 900 !important;
+  }
+</style>
+<script id="workhub-fix-regole-orari-online-v100-script">
+(function () {
+  "use strict";
+  if (window.__workhubRegoleOrariOnlineV100) return;
+  window.__workhubRegoleOrariOnlineV100 = true;
+
+  var KEY = "workhub_regole_orari_admin_v100";
+  var ONLINE_KEY = "regole_orari_amministratore";
+  var MAX_ORE_GIORNO = 8.5;
+  var syncInCorso = false;
+
+  function $(id) { return document.getElementById(id); }
+  function t(v) { return String(v == null ? "" : v).trim(); }
+  function n(v) { var x = Number(String(v == null ? "" : v).replace(",", ".")); return Number.isFinite(x) ? x : 0; }
+  function esc(v) { return t(v).replace(/[&<>\"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]; }); }
+  function oggiIso() { return new Date().toISOString().slice(0, 10); }
+  function minuti(orario) { var m = t(orario).match(/^(\d{1,2}):(\d{2})/); return m ? (Number(m[1]) * 60 + Number(m[2])) : 0; }
+  function fmtOre(v) { return Math.min(MAX_ORE_GIORNO, Math.max(0, n(v))).toFixed(2); }
+
+  function stato(txt, errore) {
+    var el = $("workhubRegoleOrariStatoV100");
+    if (!el) return;
+    el.textContent = txt;
+    el.style.background = errore ? "#fef2f2" : "#eff6ff";
+    el.style.borderColor = errore ? "#fecaca" : "#bfdbfe";
+    el.style.color = errore ? "#991b1b" : "#1e3a8a";
+  }
+
+  function clientSupabase() {
+    try { if (typeof inizializzaSupabase === "function") { var c = inizializzaSupabase(); if (c && typeof c.from === "function") return c; } } catch (_) {}
+    try { if (window.supabaseClient && typeof window.supabaseClient.from === "function") return window.supabaseClient; } catch (_) {}
+    try {
+      if (window.supabase && typeof window.supabase.createClient === "function" && typeof SUPABASE_URL !== "undefined" && typeof SUPABASE_PUBLISHABLE_KEY !== "undefined") {
+        if (!window.__workhubRegoleClientV100) window.__workhubRegoleClientV100 = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+        return window.__workhubRegoleClientV100;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function aziendaId() {
+    try { if (typeof SUPABASE_AZIENDA_ID !== "undefined" && SUPABASE_AZIENDA_ID) return String(SUPABASE_AZIENDA_ID); } catch (_) {}
+    try { return localStorage.getItem("workhub_azienda_id") || localStorage.getItem("azienda_id") || ""; } catch (_) { return ""; }
+  }
+
+  async function sessioneOk(client) {
+    try {
+      if (!client || !client.auth || typeof client.auth.getSession !== "function") return true;
+      var res = await client.auth.getSession();
+      return !!(res && res.data && res.data.session);
+    } catch (_) { return true; }
+  }
+
+  function leggiRegoleLocali() {
+    try {
+      var a = JSON.parse(localStorage.getItem(KEY) || "[]");
+      return Array.isArray(a) ? a.filter(function (r) { return r && r.dal && r.al; }) : [];
+    } catch (_) { return []; }
+  }
+
+  function salvaRegoleLocali(regole) {
+    try { localStorage.setItem(KEY, JSON.stringify(Array.isArray(regole) ? regole : [])); } catch (_) {}
+  }
+
+  function normalizzaRegola(r) {
+    return {
+      id: t(r && r.id) || ("regola_" + Date.now() + "_" + Math.round(Math.random() * 100000)),
+      dal: t(r && r.dal),
+      al: t(r && r.al),
+      nota: t(r && r.nota),
+      inizio: t(r && r.inizio) || "07:30",
+      fine: t(r && r.fine) || "17:00",
+      pausa: Math.max(0, n(r && r.pausa))
+    };
+  }
+
+  function salvaRegole(regole, sincronizzaOnline) {
+    var pulite = (Array.isArray(regole) ? regole : []).map(normalizzaRegola).filter(function (r) { return r.dal && r.al; });
+    pulite.sort(function (a, b) { return String(a.dal).localeCompare(String(b.dal)) || String(a.al).localeCompare(String(b.al)); });
+    salvaRegoleLocali(pulite);
+    renderRegole();
+    applicaRegolaAInserimento(false);
+    if (sincronizzaOnline !== false) salvaRegoleOnline(pulite);
+  }
+
+  function regolaPerData(dataIso) {
+    var d = t(dataIso);
+    if (!d) return null;
+    var regole = leggiRegoleLocali();
+    for (var i = regole.length - 1; i >= 0; i--) {
+      var r = regole[i];
+      if (r.dal <= d && d <= r.al) return r;
+    }
+    return null;
+  }
+
+  function calcolaOreDaCampi() {
+    var manuale = $("oreManuali");
+    if (manuale && t(manuale.value) !== "") {
+      var vm = Math.min(MAX_ORE_GIORNO, Math.max(0, n(manuale.value)));
+      if (n(manuale.value) > MAX_ORE_GIORNO) manuale.value = String(MAX_ORE_GIORNO);
+      return vm;
+    }
+    var inizio = minuti($("inizio") && $("inizio").value);
+    var fine = minuti($("fine") && $("fine").value);
+    var pausa = n($("pausa") && $("pausa").value);
+    var diff = (fine - inizio) / 60 - pausa;
+    return Math.min(MAX_ORE_GIORNO, Math.max(0, diff));
+  }
+
+  function aggiornaAnteprimaV100() {
+    var p = $("anteprimaOre");
+    var ore = calcolaOreDaCampi();
+    var data = ($("data") && $("data").value) || oggiIso();
+    var regola = regolaPerData(data);
+    if (p) {
+      p.innerHTML = "Ore calcolate: " + fmtOre(ore) + (regola ? " <span class=\"workhub-regola-applicata-v100\">regola applicata: " + esc(regola.inizio) + " - " + esc(regola.fine) + " / pausa " + esc(regola.pausa) + "</span>" : "");
+    }
+    return ore;
+  }
+
+  function applicaRegolaAInserimento(forza) {
+    var dataEl = $("data");
+    var data = (dataEl && dataEl.value) || oggiIso();
+    var regola = regolaPerData(data);
+    if (!regola) { aggiornaAnteprimaV100(); return false; }
+
+    var inizio = $("inizio"), fine = $("fine"), pausa = $("pausa");
+    if (inizio && (forza || !inizio.dataset.workhubModificatoManualmente)) inizio.value = regola.inizio || inizio.value;
+    if (fine && (forza || !fine.dataset.workhubModificatoManualmente)) fine.value = regola.fine || fine.value;
+    if (pausa && (forza || !pausa.dataset.workhubModificatoManualmente)) pausa.value = String(regola.pausa || 0);
+    aggiornaAnteprimaV100();
+    return true;
+  }
+
+  function renderRegole() {
+    var tbody = $("tabellaRegoleOrariAmministratore");
+    if (!tbody) return;
+    var regole = leggiRegoleLocali();
+    tbody.innerHTML = regole.length ? regole.map(function (r) {
+      return '<tr>' +
+        '<td>' + esc(r.dal) + '</td>' +
+        '<td>' + esc(r.al) + '</td>' +
+        '<td>' + esc(r.inizio) + '</td>' +
+        '<td>' + esc(r.fine) + '</td>' +
+        '<td>' + esc(r.pausa) + '</td>' +
+        '<td><button type="button" class="danger small" onclick="workhubEliminaRegolaOrarioV100(\'' + esc(r.id) + '\')">Elimina</button></td>' +
+      '</tr>';
+    }).join("") : '<tr><td colspan="6">Nessuna regola orario salvata.</td></tr>';
+  }
+
+  window.workhubEliminaRegolaOrarioV100 = function (id) {
+    var regole = leggiRegoleLocali().filter(function (r) { return r.id !== id; });
+    salvaRegole(regole, true);
+    stato("Regola eliminata e salvata.", false);
+  };
+
+  function aggiungiRegolaV100() {
+    var dal = t($("regolaOrarioDal") && $("regolaOrarioDal").value);
+    var al = t($("regolaOrarioAl") && $("regolaOrarioAl").value) || dal;
+    var inizio = t($("regolaOrarioInizio") && $("regolaOrarioInizio").value) || "07:30";
+    var fine = t($("regolaOrarioFine") && $("regolaOrarioFine").value) || "17:00";
+    var pausa = Math.max(0, n($("regolaOrarioPausa") && $("regolaOrarioPausa").value));
+    var nota = t($("regolaOrarioNota") && $("regolaOrarioNota").value);
+    if (!dal) { alert("Inserisci la data Dal della regola."); return; }
+    if (al < dal) { var tmp = dal; dal = al; al = tmp; }
+    var regole = leggiRegoleLocali();
+    regole.push(normalizzaRegola({ dal: dal, al: al, inizio: inizio, fine: fine, pausa: pausa, nota: nota }));
+    salvaRegole(regole, true);
+    stato("Regola salvata. Ora viene applicata anche in Inizio / Fine / Pausa e resta memorizzata online quando Supabase e' disponibile.", false);
+  }
+
+  async function caricaRegoleOnline() {
+    if (syncInCorso) return;
+    var client = clientSupabase();
+    if (!client || typeof client.from !== "function") return;
+    if (!(await sessioneOk(client))) return;
+    var az = aziendaId();
+    var tabelle = ["impostazioni", "workhub_impostazioni", "settings"];
+    var campi = [
+      { k: "chiave", v: "valore" },
+      { k: "key", v: "value" }
+    ];
+    for (var ti = 0; ti < tabelle.length; ti++) {
+      for (var ci = 0; ci < campi.length; ci++) {
+        try {
+          var q = client.from(tabelle[ti]).select("*").eq(campi[ci].k, ONLINE_KEY).limit(1);
+          if (az) q = q.eq("azienda_id", az);
+          var res = await q;
+          if (res && res.error) continue;
+          var row = res && res.data && res.data[0];
+          if (!row) continue;
+          var valore = row[campi[ci].v];
+          if (typeof valore === "string") valore = JSON.parse(valore);
+          if (valore && Array.isArray(valore.regole)) valore = valore.regole;
+          if (Array.isArray(valore)) {
+            salvaRegole(valore, false);
+            stato("Regole orari caricate dal database online.", false);
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  async function salvaRegoleOnline(regole) {
+    if (syncInCorso) return;
+    var client = clientSupabase();
+    if (!client || typeof client.from !== "function") { stato("Regole salvate nel browser. Per salvarle online serve accesso Supabase attivo.", false); return; }
+    if (!(await sessioneOk(client))) { stato("Regole salvate nel browser. Fai Accedi per salvarle anche online.", false); return; }
+    syncInCorso = true;
+    var az = aziendaId();
+    var tabelle = ["impostazioni", "workhub_impostazioni", "settings"];
+    var campi = [
+      { k: "chiave", v: "valore" },
+      { k: "key", v: "value" }
+    ];
+    var payloadValore = { regole: regole, aggiornato_il: new Date().toISOString() };
+    try {
+      for (var ti = 0; ti < tabelle.length; ti++) {
+        for (var ci = 0; ci < campi.length; ci++) {
+          try {
+            var tabella = tabelle[ti], k = campi[ci].k, v = campi[ci].v;
+            var cerca = client.from(tabella).select("id").eq(k, ONLINE_KEY).limit(1);
+            if (az) cerca = cerca.eq("azienda_id", az);
+            var trovato = await cerca;
+            if (trovato && trovato.error) continue;
+            var dati = {}; dati[k] = ONLINE_KEY; dati[v] = payloadValore; dati.aggiornato_il = new Date().toISOString(); if (az) dati.azienda_id = az;
+            var res;
+            if (trovato && trovato.data && trovato.data[0] && trovato.data[0].id) res = await client.from(tabella).update(dati).eq("id", trovato.data[0].id);
+            else res = await client.from(tabella).insert([dati]);
+            if (res && res.error) continue;
+            stato("Regole salvate anche online.", false);
+            return;
+          } catch (_) {}
+        }
+      }
+      stato("Regole salvate nel browser. Non ho trovato una tabella impostazioni online compatibile.", true);
+    } finally {
+      syncInCorso = false;
+    }
+  }
+
+  function installaStato() {
+    var table = $("tabellaRegoleOrariAmministratore");
+    if (!table || $("workhubRegoleOrariStatoV100")) return;
+    var box = document.createElement("div");
+    box.id = "workhubRegoleOrariStatoV100";
+    box.textContent = "Regole orari pronte: vengono salvate e applicate all'inserimento ore.";
+    var parent = table.closest(".calendar-scroll") || table.parentElement;
+    if (parent) parent.insertAdjacentElement("afterend", box);
+  }
+
+  function avvolgiFunzioni() {
+    if (!window.aggiungiRegolaOrarioAmministratore || !window.aggiungiRegolaOrarioAmministratore.__workhubV100) {
+      var originaleAggiungi = window.aggiungiRegolaOrarioAmministratore;
+      window.aggiungiRegolaOrarioAmministratore = function () {
+        var res;
+        try { if (typeof originaleAggiungi === "function") res = originaleAggiungi.apply(this, arguments); } catch (e) { console.warn(e); }
+        aggiungiRegolaV100();
+        return res;
+      };
+      window.aggiungiRegolaOrarioAmministratore.__workhubV100 = true;
+    }
+
+    if (!window.salvaDatiAmministratore || !window.salvaDatiAmministratore.__workhubV100) {
+      var originaleSalvaAdmin = window.salvaDatiAmministratore;
+      window.salvaDatiAmministratore = function () {
+        var res;
+        try { if (typeof originaleSalvaAdmin === "function") res = originaleSalvaAdmin.apply(this, arguments); } catch (e) { console.warn(e); }
+        salvaRegoleOnline(leggiRegoleLocali());
+        stato("Dati amministratore salvati. Regole orari sincronizzate.", false);
+        return res;
+      };
+      window.salvaDatiAmministratore.__workhubV100 = true;
+    }
+
+    if (!window.aggiornaAnteprimaOre || !window.aggiornaAnteprimaOre.__workhubV100) {
+      var originaleAnteprima = window.aggiornaAnteprimaOre;
+      window.aggiornaAnteprimaOre = function () {
+        var res;
+        try { if (typeof originaleAnteprima === "function") res = originaleAnteprima.apply(this, arguments); } catch (_) {}
+        aggiornaAnteprimaV100();
+        return res;
+      };
+      window.aggiornaAnteprimaOre.__workhubV100 = true;
+    }
+
+    if (!window.salvaOra || !window.salvaOra.__workhubV100) {
+      var originaleSalvaOra = window.salvaOra;
+      window.salvaOra = function () {
+        applicaRegolaAInserimento(false);
+        var manuale = $("oreManuali");
+        if (manuale && t(manuale.value) !== "" && n(manuale.value) > MAX_ORE_GIORNO) manuale.value = String(MAX_ORE_GIORNO);
+        aggiornaAnteprimaV100();
+        return typeof originaleSalvaOra === "function" ? originaleSalvaOra.apply(this, arguments) : undefined;
+      };
+      window.salvaOra.__workhubV100 = true;
+    }
+  }
+
+  function collegaCampi() {
+    ["inizio", "fine", "pausa"].forEach(function (id) {
+      var el = $(id);
+      if (el && !el.__workhubModificatoV100) {
+        el.__workhubModificatoV100 = true;
+        el.addEventListener("input", function () { el.dataset.workhubModificatoManualmente = "1"; aggiornaAnteprimaV100(); });
+      }
+    });
+    ["data", "cantiere", "selectCantiereInserimento"].forEach(function (id) {
+      var el = $(id);
+      if (el && !el.__workhubApplicaRegoleV100) {
+        el.__workhubApplicaRegoleV100 = true;
+        el.addEventListener("change", function () {
+          ["inizio", "fine", "pausa"].forEach(function (cid) { var c = $(cid); if (c) delete c.dataset.workhubModificatoManualmente; });
+          applicaRegolaAInserimento(true);
+        });
+      }
+    });
+    var manuale = $("oreManuali");
+    if (manuale && !manuale.__workhubMaxV100) {
+      manuale.__workhubMaxV100 = true;
+      manuale.setAttribute("max", String(MAX_ORE_GIORNO));
+      manuale.addEventListener("input", aggiornaAnteprimaV100);
+    }
+  }
+
+  function avvia() {
+    installaStato();
+    avvolgiFunzioni();
+    collegaCampi();
+    renderRegole();
+    applicaRegolaAInserimento(false);
+  }
+
+  window.workhubCaricaRegoleOrariOnlineV100 = caricaRegoleOnline;
+  window.workhubSalvaRegoleOrariOnlineV100 = function () { return salvaRegoleOnline(leggiRegoleLocali()); };
+  window.workhubApplicaRegolaOrarioInserimentoV100 = function () { return applicaRegolaAInserimento(true); };
+
+  document.addEventListener("DOMContentLoaded", function () {
+    avvia();
+    setTimeout(avvia, 400);
+    setTimeout(function () { caricaRegoleOnline().then(avvia).catch(function () {}); }, 1200);
+    setTimeout(avvia, 1800);
+  });
+  window.addEventListener("load", function () {
+    avvia();
+    setTimeout(function () { caricaRegoleOnline().then(avvia).catch(function () {}); }, 800);
+    setTimeout(avvia, 2200);
+  });
+})();
+</script>
+
+
+<!-- WORKHUB FIX V102 - PULSANTI COLLABORATORE / DIPENDENTI ROBUSTI -->
+<style id="workhub-fix-v102-style">
+  /* Forza apertura corretta del pannello dipendenti/collaboratori anche se vecchi patch lo richiudono. */
+  body.workhub-auth-admin #gestioneOperaiPanel.workhub-forza-aperto-v102,
+  #gestioneOperaiPanel.workhub-forza-aperto-v102 {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    pointer-events: auto !important;
+  }
+  #toggleGestioneOperaiBtn {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+  }
+</style>
+<script id="workhub-fix-v102-script">
+(function () {
+  if (window.__workhubFixCollaboratoreV102) return;
+  window.__workhubFixCollaboratoreV102 = true;
+
+  function $(id) { return document.getElementById(id); }
+  function txt(v) { return String(v == null ? '' : v).trim(); }
+  function clean(v) {
+    try { if (typeof testoPulito === 'function') return testoPulito(v); } catch (_) {}
+    return txt(v).replace(/\s+/g, ' ');
+  }
+  function key(v) {
+    try { if (typeof chiaveRicerca === 'function') return chiaveRicerca(v); } catch (_) {}
+    return clean(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function setValue(id, valore) {
+    var el = $(id);
+    if (!el) return;
+    el.value = valore || '';
+    try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+    try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
+  }
+
+  function panelOperaiAperto() {
+    var p = $('gestioneOperaiPanel');
+    if (!p) return false;
+    if (p.classList.contains('aperto') || p.classList.contains('workhub-forza-aperto-v102')) return true;
+    try { return getComputedStyle(p).display !== 'none'; } catch (_) { return false; }
+  }
+
+  function apriPannelloOperai() {
+    var p = $('gestioneOperaiPanel');
+    var b = $('toggleGestioneOperaiBtn');
+    if (!p) return;
+    p.classList.add('aperto', 'workhub-forza-aperto-v102');
+    p.style.setProperty('display', 'block', 'important');
+    p.style.setProperty('visibility', 'visible', 'important');
+    p.style.setProperty('opacity', '1', 'important');
+    p.style.setProperty('height', 'auto', 'important');
+    p.style.setProperty('max-height', 'none', 'important');
+    p.style.setProperty('overflow', 'visible', 'important');
+    if (b) b.textContent = 'Nascondi gestione dipendenti';
+    try { if (typeof workhubAggiornaMenuTendinaOperaiV9 === 'function') workhubAggiornaMenuTendinaOperaiV9(); } catch (_) {}
+    try { if (typeof workhubFiltraOperaiAttiviTerminatiStabile === 'function') workhubFiltraOperaiAttiviTerminatiStabile(); } catch (_) {}
+  }
+
+  function chiudiPannelloOperai() {
+    var p = $('gestioneOperaiPanel');
+    var b = $('toggleGestioneOperaiBtn');
+    if (!p) return;
+    p.classList.remove('aperto', 'workhub-forza-aperto-v102');
+    p.style.removeProperty('display');
+    p.style.removeProperty('visibility');
+    p.style.removeProperty('opacity');
+    p.style.removeProperty('height');
+    p.style.removeProperty('max-height');
+    p.style.removeProperty('overflow');
+    if (b) b.textContent = 'Aggiungi dipendente attivo';
+  }
+
+  window.workhubToggleGestioneOperaiV102 = function (ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    if (panelOperaiAperto()) chiudiPannelloOperai();
+    else {
+      apriPannelloOperai();
+      setTimeout(apriPannelloOperai, 80);
+      setTimeout(apriPannelloOperai, 300);
+    }
+    return false;
+  };
+
+  function installaBottoneOperai() {
+    var b = $('toggleGestioneOperaiBtn');
+    if (!b) return;
+    b.onclick = window.workhubToggleGestioneOperaiV102;
+    if (!b.__workhubV102Click) {
+      b.__workhubV102Click = true;
+      b.addEventListener('click', window.workhubToggleGestioneOperaiV102, true);
+    }
+  }
+
+  /* Rende robusto anche il pulsante Scarica/Stampa collaboratore: se il campo nascosto non e' valorizzato,
+     usa la ricerca veloce o trova il nome dalle ore salvate. */
+  function nomiDaOre() {
+    try {
+      if (!Array.isArray(window.ore)) return [];
+      var visto = {};
+      return window.ore.map(function (r) { return clean(r && r.collaboratore); }).filter(function (n) {
+        if (!n) return false;
+        var k = key(n);
+        if (visto[k]) return false;
+        visto[k] = true;
+        return true;
+      });
+    } catch (_) { return []; }
+  }
+  function nomiTutti() {
+    try { if (typeof collaboratoriTutti === 'function') return collaboratoriTutti().map(clean).filter(Boolean); } catch (_) {}
+    return nomiDaOre();
+  }
+  function scegliCollaboratorePerScarico() {
+    var filtro = clean(($('filtroCollaboratore') || {}).value);
+    var ricerca = clean(($('ricercaVeloceCollaboratoreFoglio') || {}).value || ($('workhubRaccoltaCollaboratoreFiltro') || {}).value);
+    if (filtro) return filtro;
+    if (!ricerca) return '';
+    var k = key(ricerca);
+    var nomi = nomiTutti().concat(nomiDaOre());
+    var trovato = nomi.find(function (n) { return key(n) === k; }) ||
+      nomi.find(function (n) { return key(n).indexOf(k) !== -1 || k.indexOf(key(n)) !== -1; });
+    var scelto = trovato || ricerca;
+    setValue('filtroCollaboratore', scelto);
+    setValue('ricercaVeloceCollaboratoreFoglio', scelto);
+    setValue('workhubRaccoltaCollaboratoreFiltro', scelto);
+    try { if (typeof renderizza === 'function') renderizza(); } catch (_) {}
+    return scelto;
+  }
+
+  function patchScaricaCollaboratore() {
+    if (window.scaricaCollaboratore && window.scaricaCollaboratore.__workhubV102) return;
+    var originale = window.scaricaCollaboratore || window.workhubScaricaCollaboratoreFinaleV90;
+    if (typeof originale !== 'function') return;
+    window.scaricaCollaboratore = function (ev) {
+      scegliCollaboratorePerScarico();
+      return originale.apply(this, arguments);
+    };
+    window.scaricaCollaboratore.__workhubV102 = true;
+    window.workhubScaricaCollaboratoreFinaleV102 = window.scaricaCollaboratore;
+
+    document.querySelectorAll('button').forEach(function (btn) {
+      var onclick = String(btn.getAttribute('onclick') || '');
+      var testo = String(btn.textContent || '').toLowerCase();
+      if (onclick.indexOf('scaricaCollaboratore') !== -1 || testo.indexOf('scarica') !== -1 && testo.indexOf('collaboratore') !== -1) {
+        btn.onclick = window.scaricaCollaboratore;
+        btn.setAttribute('onclick', 'scaricaCollaboratore(event)');
+      }
+    });
+  }
+
+  function installa() {
+    installaBottoneOperai();
+    patchScaricaCollaboratore();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    installa();
+    setTimeout(installa, 250);
+    setTimeout(installa, 1000);
+  });
+  window.addEventListener('load', function () {
+    installa();
+    setTimeout(installa, 500);
+    setTimeout(installa, 1500);
+  });
+  setInterval(installa, 1200);
+})();
+</script>
+<!-- FINE WORKHUB FIX V102 -->
+
 </body>
 </html>`;
 
@@ -8968,6 +10078,561 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
   });
 })();
 </script>
+
+
+<!-- WORKHUB FIX REGOLE ORARI ONLINE + APPLICAZIONE INSERIMENTO ORE V100 -->
+<style id="workhub-fix-regole-orari-online-v100-style">
+  #workhubRegoleOrariStatoV100 {
+    margin: 10px 0 0 !important;
+    padding: 10px 12px !important;
+    border: 1px solid #bfdbfe !important;
+    border-radius: 14px !important;
+    background: #eff6ff !important;
+    color: #1e3a8a !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    font-weight: 800 !important;
+  }
+  .workhub-regola-applicata-v100 {
+    display: inline-block !important;
+    margin-top: 6px !important;
+    padding: 4px 8px !important;
+    border-radius: 999px !important;
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    font-weight: 900 !important;
+  }
+</style>
+<script id="workhub-fix-regole-orari-online-v100-script">
+(function () {
+  "use strict";
+  if (window.__workhubRegoleOrariOnlineV100) return;
+  window.__workhubRegoleOrariOnlineV100 = true;
+
+  var KEY = "workhub_regole_orari_admin_v100";
+  var ONLINE_KEY = "regole_orari_amministratore";
+  var MAX_ORE_GIORNO = 8.5;
+  var syncInCorso = false;
+
+  function $(id) { return document.getElementById(id); }
+  function t(v) { return String(v == null ? "" : v).trim(); }
+  function n(v) { var x = Number(String(v == null ? "" : v).replace(",", ".")); return Number.isFinite(x) ? x : 0; }
+  function esc(v) { return t(v).replace(/[&<>\"']/g, function (c) { return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]; }); }
+  function oggiIso() { return new Date().toISOString().slice(0, 10); }
+  function minuti(orario) { var m = t(orario).match(/^(\d{1,2}):(\d{2})/); return m ? (Number(m[1]) * 60 + Number(m[2])) : 0; }
+  function fmtOre(v) { return Math.min(MAX_ORE_GIORNO, Math.max(0, n(v))).toFixed(2); }
+
+  function stato(txt, errore) {
+    var el = $("workhubRegoleOrariStatoV100");
+    if (!el) return;
+    el.textContent = txt;
+    el.style.background = errore ? "#fef2f2" : "#eff6ff";
+    el.style.borderColor = errore ? "#fecaca" : "#bfdbfe";
+    el.style.color = errore ? "#991b1b" : "#1e3a8a";
+  }
+
+  function clientSupabase() {
+    try { if (typeof inizializzaSupabase === "function") { var c = inizializzaSupabase(); if (c && typeof c.from === "function") return c; } } catch (_) {}
+    try { if (window.supabaseClient && typeof window.supabaseClient.from === "function") return window.supabaseClient; } catch (_) {}
+    try {
+      if (window.supabase && typeof window.supabase.createClient === "function" && typeof SUPABASE_URL !== "undefined" && typeof SUPABASE_PUBLISHABLE_KEY !== "undefined") {
+        if (!window.__workhubRegoleClientV100) window.__workhubRegoleClientV100 = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+        return window.__workhubRegoleClientV100;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function aziendaId() {
+    try { if (typeof SUPABASE_AZIENDA_ID !== "undefined" && SUPABASE_AZIENDA_ID) return String(SUPABASE_AZIENDA_ID); } catch (_) {}
+    try { return localStorage.getItem("workhub_azienda_id") || localStorage.getItem("azienda_id") || ""; } catch (_) { return ""; }
+  }
+
+  async function sessioneOk(client) {
+    try {
+      if (!client || !client.auth || typeof client.auth.getSession !== "function") return true;
+      var res = await client.auth.getSession();
+      return !!(res && res.data && res.data.session);
+    } catch (_) { return true; }
+  }
+
+  function leggiRegoleLocali() {
+    try {
+      var a = JSON.parse(localStorage.getItem(KEY) || "[]");
+      return Array.isArray(a) ? a.filter(function (r) { return r && r.dal && r.al; }) : [];
+    } catch (_) { return []; }
+  }
+
+  function salvaRegoleLocali(regole) {
+    try { localStorage.setItem(KEY, JSON.stringify(Array.isArray(regole) ? regole : [])); } catch (_) {}
+  }
+
+  function normalizzaRegola(r) {
+    return {
+      id: t(r && r.id) || ("regola_" + Date.now() + "_" + Math.round(Math.random() * 100000)),
+      dal: t(r && r.dal),
+      al: t(r && r.al),
+      nota: t(r && r.nota),
+      inizio: t(r && r.inizio) || "07:30",
+      fine: t(r && r.fine) || "17:00",
+      pausa: Math.max(0, n(r && r.pausa))
+    };
+  }
+
+  function salvaRegole(regole, sincronizzaOnline) {
+    var pulite = (Array.isArray(regole) ? regole : []).map(normalizzaRegola).filter(function (r) { return r.dal && r.al; });
+    pulite.sort(function (a, b) { return String(a.dal).localeCompare(String(b.dal)) || String(a.al).localeCompare(String(b.al)); });
+    salvaRegoleLocali(pulite);
+    renderRegole();
+    applicaRegolaAInserimento(false);
+    if (sincronizzaOnline !== false) salvaRegoleOnline(pulite);
+  }
+
+  function regolaPerData(dataIso) {
+    var d = t(dataIso);
+    if (!d) return null;
+    var regole = leggiRegoleLocali();
+    for (var i = regole.length - 1; i >= 0; i--) {
+      var r = regole[i];
+      if (r.dal <= d && d <= r.al) return r;
+    }
+    return null;
+  }
+
+  function calcolaOreDaCampi() {
+    var manuale = $("oreManuali");
+    if (manuale && t(manuale.value) !== "") {
+      var vm = Math.min(MAX_ORE_GIORNO, Math.max(0, n(manuale.value)));
+      if (n(manuale.value) > MAX_ORE_GIORNO) manuale.value = String(MAX_ORE_GIORNO);
+      return vm;
+    }
+    var inizio = minuti($("inizio") && $("inizio").value);
+    var fine = minuti($("fine") && $("fine").value);
+    var pausa = n($("pausa") && $("pausa").value);
+    var diff = (fine - inizio) / 60 - pausa;
+    return Math.min(MAX_ORE_GIORNO, Math.max(0, diff));
+  }
+
+  function aggiornaAnteprimaV100() {
+    var p = $("anteprimaOre");
+    var ore = calcolaOreDaCampi();
+    var data = ($("data") && $("data").value) || oggiIso();
+    var regola = regolaPerData(data);
+    if (p) {
+      p.innerHTML = "Ore calcolate: " + fmtOre(ore) + (regola ? " <span class=\"workhub-regola-applicata-v100\">regola applicata: " + esc(regola.inizio) + " - " + esc(regola.fine) + " / pausa " + esc(regola.pausa) + "</span>" : "");
+    }
+    return ore;
+  }
+
+  function applicaRegolaAInserimento(forza) {
+    var dataEl = $("data");
+    var data = (dataEl && dataEl.value) || oggiIso();
+    var regola = regolaPerData(data);
+    if (!regola) { aggiornaAnteprimaV100(); return false; }
+
+    var inizio = $("inizio"), fine = $("fine"), pausa = $("pausa");
+    if (inizio && (forza || !inizio.dataset.workhubModificatoManualmente)) inizio.value = regola.inizio || inizio.value;
+    if (fine && (forza || !fine.dataset.workhubModificatoManualmente)) fine.value = regola.fine || fine.value;
+    if (pausa && (forza || !pausa.dataset.workhubModificatoManualmente)) pausa.value = String(regola.pausa || 0);
+    aggiornaAnteprimaV100();
+    return true;
+  }
+
+  function renderRegole() {
+    var tbody = $("tabellaRegoleOrariAmministratore");
+    if (!tbody) return;
+    var regole = leggiRegoleLocali();
+    tbody.innerHTML = regole.length ? regole.map(function (r) {
+      return '<tr>' +
+        '<td>' + esc(r.dal) + '</td>' +
+        '<td>' + esc(r.al) + '</td>' +
+        '<td>' + esc(r.inizio) + '</td>' +
+        '<td>' + esc(r.fine) + '</td>' +
+        '<td>' + esc(r.pausa) + '</td>' +
+        '<td><button type="button" class="danger small" onclick="workhubEliminaRegolaOrarioV100(\'' + esc(r.id) + '\')">Elimina</button></td>' +
+      '</tr>';
+    }).join("") : '<tr><td colspan="6">Nessuna regola orario salvata.</td></tr>';
+  }
+
+  window.workhubEliminaRegolaOrarioV100 = function (id) {
+    var regole = leggiRegoleLocali().filter(function (r) { return r.id !== id; });
+    salvaRegole(regole, true);
+    stato("Regola eliminata e salvata.", false);
+  };
+
+  function aggiungiRegolaV100() {
+    var dal = t($("regolaOrarioDal") && $("regolaOrarioDal").value);
+    var al = t($("regolaOrarioAl") && $("regolaOrarioAl").value) || dal;
+    var inizio = t($("regolaOrarioInizio") && $("regolaOrarioInizio").value) || "07:30";
+    var fine = t($("regolaOrarioFine") && $("regolaOrarioFine").value) || "17:00";
+    var pausa = Math.max(0, n($("regolaOrarioPausa") && $("regolaOrarioPausa").value));
+    var nota = t($("regolaOrarioNota") && $("regolaOrarioNota").value);
+    if (!dal) { alert("Inserisci la data Dal della regola."); return; }
+    if (al < dal) { var tmp = dal; dal = al; al = tmp; }
+    var regole = leggiRegoleLocali();
+    regole.push(normalizzaRegola({ dal: dal, al: al, inizio: inizio, fine: fine, pausa: pausa, nota: nota }));
+    salvaRegole(regole, true);
+    stato("Regola salvata. Ora viene applicata anche in Inizio / Fine / Pausa e resta memorizzata online quando Supabase e' disponibile.", false);
+  }
+
+  async function caricaRegoleOnline() {
+    if (syncInCorso) return;
+    var client = clientSupabase();
+    if (!client || typeof client.from !== "function") return;
+    if (!(await sessioneOk(client))) return;
+    var az = aziendaId();
+    var tabelle = ["impostazioni", "workhub_impostazioni", "settings"];
+    var campi = [
+      { k: "chiave", v: "valore" },
+      { k: "key", v: "value" }
+    ];
+    for (var ti = 0; ti < tabelle.length; ti++) {
+      for (var ci = 0; ci < campi.length; ci++) {
+        try {
+          var q = client.from(tabelle[ti]).select("*").eq(campi[ci].k, ONLINE_KEY).limit(1);
+          if (az) q = q.eq("azienda_id", az);
+          var res = await q;
+          if (res && res.error) continue;
+          var row = res && res.data && res.data[0];
+          if (!row) continue;
+          var valore = row[campi[ci].v];
+          if (typeof valore === "string") valore = JSON.parse(valore);
+          if (valore && Array.isArray(valore.regole)) valore = valore.regole;
+          if (Array.isArray(valore)) {
+            salvaRegole(valore, false);
+            stato("Regole orari caricate dal database online.", false);
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  async function salvaRegoleOnline(regole) {
+    if (syncInCorso) return;
+    var client = clientSupabase();
+    if (!client || typeof client.from !== "function") { stato("Regole salvate nel browser. Per salvarle online serve accesso Supabase attivo.", false); return; }
+    if (!(await sessioneOk(client))) { stato("Regole salvate nel browser. Fai Accedi per salvarle anche online.", false); return; }
+    syncInCorso = true;
+    var az = aziendaId();
+    var tabelle = ["impostazioni", "workhub_impostazioni", "settings"];
+    var campi = [
+      { k: "chiave", v: "valore" },
+      { k: "key", v: "value" }
+    ];
+    var payloadValore = { regole: regole, aggiornato_il: new Date().toISOString() };
+    try {
+      for (var ti = 0; ti < tabelle.length; ti++) {
+        for (var ci = 0; ci < campi.length; ci++) {
+          try {
+            var tabella = tabelle[ti], k = campi[ci].k, v = campi[ci].v;
+            var cerca = client.from(tabella).select("id").eq(k, ONLINE_KEY).limit(1);
+            if (az) cerca = cerca.eq("azienda_id", az);
+            var trovato = await cerca;
+            if (trovato && trovato.error) continue;
+            var dati = {}; dati[k] = ONLINE_KEY; dati[v] = payloadValore; dati.aggiornato_il = new Date().toISOString(); if (az) dati.azienda_id = az;
+            var res;
+            if (trovato && trovato.data && trovato.data[0] && trovato.data[0].id) res = await client.from(tabella).update(dati).eq("id", trovato.data[0].id);
+            else res = await client.from(tabella).insert([dati]);
+            if (res && res.error) continue;
+            stato("Regole salvate anche online.", false);
+            return;
+          } catch (_) {}
+        }
+      }
+      stato("Regole salvate nel browser. Non ho trovato una tabella impostazioni online compatibile.", true);
+    } finally {
+      syncInCorso = false;
+    }
+  }
+
+  function installaStato() {
+    var table = $("tabellaRegoleOrariAmministratore");
+    if (!table || $("workhubRegoleOrariStatoV100")) return;
+    var box = document.createElement("div");
+    box.id = "workhubRegoleOrariStatoV100";
+    box.textContent = "Regole orari pronte: vengono salvate e applicate all'inserimento ore.";
+    var parent = table.closest(".calendar-scroll") || table.parentElement;
+    if (parent) parent.insertAdjacentElement("afterend", box);
+  }
+
+  function avvolgiFunzioni() {
+    if (!window.aggiungiRegolaOrarioAmministratore || !window.aggiungiRegolaOrarioAmministratore.__workhubV100) {
+      var originaleAggiungi = window.aggiungiRegolaOrarioAmministratore;
+      window.aggiungiRegolaOrarioAmministratore = function () {
+        var res;
+        try { if (typeof originaleAggiungi === "function") res = originaleAggiungi.apply(this, arguments); } catch (e) { console.warn(e); }
+        aggiungiRegolaV100();
+        return res;
+      };
+      window.aggiungiRegolaOrarioAmministratore.__workhubV100 = true;
+    }
+
+    if (!window.salvaDatiAmministratore || !window.salvaDatiAmministratore.__workhubV100) {
+      var originaleSalvaAdmin = window.salvaDatiAmministratore;
+      window.salvaDatiAmministratore = function () {
+        var res;
+        try { if (typeof originaleSalvaAdmin === "function") res = originaleSalvaAdmin.apply(this, arguments); } catch (e) { console.warn(e); }
+        salvaRegoleOnline(leggiRegoleLocali());
+        stato("Dati amministratore salvati. Regole orari sincronizzate.", false);
+        return res;
+      };
+      window.salvaDatiAmministratore.__workhubV100 = true;
+    }
+
+    if (!window.aggiornaAnteprimaOre || !window.aggiornaAnteprimaOre.__workhubV100) {
+      var originaleAnteprima = window.aggiornaAnteprimaOre;
+      window.aggiornaAnteprimaOre = function () {
+        var res;
+        try { if (typeof originaleAnteprima === "function") res = originaleAnteprima.apply(this, arguments); } catch (_) {}
+        aggiornaAnteprimaV100();
+        return res;
+      };
+      window.aggiornaAnteprimaOre.__workhubV100 = true;
+    }
+
+    if (!window.salvaOra || !window.salvaOra.__workhubV100) {
+      var originaleSalvaOra = window.salvaOra;
+      window.salvaOra = function () {
+        applicaRegolaAInserimento(false);
+        var manuale = $("oreManuali");
+        if (manuale && t(manuale.value) !== "" && n(manuale.value) > MAX_ORE_GIORNO) manuale.value = String(MAX_ORE_GIORNO);
+        aggiornaAnteprimaV100();
+        return typeof originaleSalvaOra === "function" ? originaleSalvaOra.apply(this, arguments) : undefined;
+      };
+      window.salvaOra.__workhubV100 = true;
+    }
+  }
+
+  function collegaCampi() {
+    ["inizio", "fine", "pausa"].forEach(function (id) {
+      var el = $(id);
+      if (el && !el.__workhubModificatoV100) {
+        el.__workhubModificatoV100 = true;
+        el.addEventListener("input", function () { el.dataset.workhubModificatoManualmente = "1"; aggiornaAnteprimaV100(); });
+      }
+    });
+    ["data", "cantiere", "selectCantiereInserimento"].forEach(function (id) {
+      var el = $(id);
+      if (el && !el.__workhubApplicaRegoleV100) {
+        el.__workhubApplicaRegoleV100 = true;
+        el.addEventListener("change", function () {
+          ["inizio", "fine", "pausa"].forEach(function (cid) { var c = $(cid); if (c) delete c.dataset.workhubModificatoManualmente; });
+          applicaRegolaAInserimento(true);
+        });
+      }
+    });
+    var manuale = $("oreManuali");
+    if (manuale && !manuale.__workhubMaxV100) {
+      manuale.__workhubMaxV100 = true;
+      manuale.setAttribute("max", String(MAX_ORE_GIORNO));
+      manuale.addEventListener("input", aggiornaAnteprimaV100);
+    }
+  }
+
+  function avvia() {
+    installaStato();
+    avvolgiFunzioni();
+    collegaCampi();
+    renderRegole();
+    applicaRegolaAInserimento(false);
+  }
+
+  window.workhubCaricaRegoleOrariOnlineV100 = caricaRegoleOnline;
+  window.workhubSalvaRegoleOrariOnlineV100 = function () { return salvaRegoleOnline(leggiRegoleLocali()); };
+  window.workhubApplicaRegolaOrarioInserimentoV100 = function () { return applicaRegolaAInserimento(true); };
+
+  document.addEventListener("DOMContentLoaded", function () {
+    avvia();
+    setTimeout(avvia, 400);
+    setTimeout(function () { caricaRegoleOnline().then(avvia).catch(function () {}); }, 1200);
+    setTimeout(avvia, 1800);
+  });
+  window.addEventListener("load", function () {
+    avvia();
+    setTimeout(function () { caricaRegoleOnline().then(avvia).catch(function () {}); }, 800);
+    setTimeout(avvia, 2200);
+  });
+})();
+</script>
+
+
+<!-- WORKHUB FIX V102 - PULSANTI COLLABORATORE / DIPENDENTI ROBUSTI -->
+<style id="workhub-fix-v102-style">
+  /* Forza apertura corretta del pannello dipendenti/collaboratori anche se vecchi patch lo richiudono. */
+  body.workhub-auth-admin #gestioneOperaiPanel.workhub-forza-aperto-v102,
+  #gestioneOperaiPanel.workhub-forza-aperto-v102 {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    pointer-events: auto !important;
+  }
+  #toggleGestioneOperaiBtn {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+  }
+</style>
+<script id="workhub-fix-v102-script">
+(function () {
+  if (window.__workhubFixCollaboratoreV102) return;
+  window.__workhubFixCollaboratoreV102 = true;
+
+  function $(id) { return document.getElementById(id); }
+  function txt(v) { return String(v == null ? '' : v).trim(); }
+  function clean(v) {
+    try { if (typeof testoPulito === 'function') return testoPulito(v); } catch (_) {}
+    return txt(v).replace(/\s+/g, ' ');
+  }
+  function key(v) {
+    try { if (typeof chiaveRicerca === 'function') return chiaveRicerca(v); } catch (_) {}
+    return clean(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function setValue(id, valore) {
+    var el = $(id);
+    if (!el) return;
+    el.value = valore || '';
+    try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+    try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
+  }
+
+  function panelOperaiAperto() {
+    var p = $('gestioneOperaiPanel');
+    if (!p) return false;
+    if (p.classList.contains('aperto') || p.classList.contains('workhub-forza-aperto-v102')) return true;
+    try { return getComputedStyle(p).display !== 'none'; } catch (_) { return false; }
+  }
+
+  function apriPannelloOperai() {
+    var p = $('gestioneOperaiPanel');
+    var b = $('toggleGestioneOperaiBtn');
+    if (!p) return;
+    p.classList.add('aperto', 'workhub-forza-aperto-v102');
+    p.style.setProperty('display', 'block', 'important');
+    p.style.setProperty('visibility', 'visible', 'important');
+    p.style.setProperty('opacity', '1', 'important');
+    p.style.setProperty('height', 'auto', 'important');
+    p.style.setProperty('max-height', 'none', 'important');
+    p.style.setProperty('overflow', 'visible', 'important');
+    if (b) b.textContent = 'Nascondi gestione dipendenti';
+    try { if (typeof workhubAggiornaMenuTendinaOperaiV9 === 'function') workhubAggiornaMenuTendinaOperaiV9(); } catch (_) {}
+    try { if (typeof workhubFiltraOperaiAttiviTerminatiStabile === 'function') workhubFiltraOperaiAttiviTerminatiStabile(); } catch (_) {}
+  }
+
+  function chiudiPannelloOperai() {
+    var p = $('gestioneOperaiPanel');
+    var b = $('toggleGestioneOperaiBtn');
+    if (!p) return;
+    p.classList.remove('aperto', 'workhub-forza-aperto-v102');
+    p.style.removeProperty('display');
+    p.style.removeProperty('visibility');
+    p.style.removeProperty('opacity');
+    p.style.removeProperty('height');
+    p.style.removeProperty('max-height');
+    p.style.removeProperty('overflow');
+    if (b) b.textContent = 'Aggiungi dipendente attivo';
+  }
+
+  window.workhubToggleGestioneOperaiV102 = function (ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    if (panelOperaiAperto()) chiudiPannelloOperai();
+    else {
+      apriPannelloOperai();
+      setTimeout(apriPannelloOperai, 80);
+      setTimeout(apriPannelloOperai, 300);
+    }
+    return false;
+  };
+
+  function installaBottoneOperai() {
+    var b = $('toggleGestioneOperaiBtn');
+    if (!b) return;
+    b.onclick = window.workhubToggleGestioneOperaiV102;
+    if (!b.__workhubV102Click) {
+      b.__workhubV102Click = true;
+      b.addEventListener('click', window.workhubToggleGestioneOperaiV102, true);
+    }
+  }
+
+  /* Rende robusto anche il pulsante Scarica/Stampa collaboratore: se il campo nascosto non e' valorizzato,
+     usa la ricerca veloce o trova il nome dalle ore salvate. */
+  function nomiDaOre() {
+    try {
+      if (!Array.isArray(window.ore)) return [];
+      var visto = {};
+      return window.ore.map(function (r) { return clean(r && r.collaboratore); }).filter(function (n) {
+        if (!n) return false;
+        var k = key(n);
+        if (visto[k]) return false;
+        visto[k] = true;
+        return true;
+      });
+    } catch (_) { return []; }
+  }
+  function nomiTutti() {
+    try { if (typeof collaboratoriTutti === 'function') return collaboratoriTutti().map(clean).filter(Boolean); } catch (_) {}
+    return nomiDaOre();
+  }
+  function scegliCollaboratorePerScarico() {
+    var filtro = clean(($('filtroCollaboratore') || {}).value);
+    var ricerca = clean(($('ricercaVeloceCollaboratoreFoglio') || {}).value || ($('workhubRaccoltaCollaboratoreFiltro') || {}).value);
+    if (filtro) return filtro;
+    if (!ricerca) return '';
+    var k = key(ricerca);
+    var nomi = nomiTutti().concat(nomiDaOre());
+    var trovato = nomi.find(function (n) { return key(n) === k; }) ||
+      nomi.find(function (n) { return key(n).indexOf(k) !== -1 || k.indexOf(key(n)) !== -1; });
+    var scelto = trovato || ricerca;
+    setValue('filtroCollaboratore', scelto);
+    setValue('ricercaVeloceCollaboratoreFoglio', scelto);
+    setValue('workhubRaccoltaCollaboratoreFiltro', scelto);
+    try { if (typeof renderizza === 'function') renderizza(); } catch (_) {}
+    return scelto;
+  }
+
+  function patchScaricaCollaboratore() {
+    if (window.scaricaCollaboratore && window.scaricaCollaboratore.__workhubV102) return;
+    var originale = window.scaricaCollaboratore || window.workhubScaricaCollaboratoreFinaleV90;
+    if (typeof originale !== 'function') return;
+    window.scaricaCollaboratore = function (ev) {
+      scegliCollaboratorePerScarico();
+      return originale.apply(this, arguments);
+    };
+    window.scaricaCollaboratore.__workhubV102 = true;
+    window.workhubScaricaCollaboratoreFinaleV102 = window.scaricaCollaboratore;
+
+    document.querySelectorAll('button').forEach(function (btn) {
+      var onclick = String(btn.getAttribute('onclick') || '');
+      var testo = String(btn.textContent || '').toLowerCase();
+      if (onclick.indexOf('scaricaCollaboratore') !== -1 || testo.indexOf('scarica') !== -1 && testo.indexOf('collaboratore') !== -1) {
+        btn.onclick = window.scaricaCollaboratore;
+        btn.setAttribute('onclick', 'scaricaCollaboratore(event)');
+      }
+    });
+  }
+
+  function installa() {
+    installaBottoneOperai();
+    patchScaricaCollaboratore();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    installa();
+    setTimeout(installa, 250);
+    setTimeout(installa, 1000);
+  });
+  window.addEventListener('load', function () {
+    installa();
+    setTimeout(installa, 500);
+    setTimeout(installa, 1500);
+  });
+  setInterval(installa, 1200);
+})();
+</script>
+<!-- FINE WORKHUB FIX V102 -->
 
 </body>
 </html>
