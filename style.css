@@ -3565,3 +3565,30 @@ body.workhub-economica-solo .workhub-econ-close-solo {
     font-size: 17px;
   }
 }
+
+/* WorkHub V111 - ricerca/scorrimento piu fluido sui touch screen. */
+.suggerimenti-ricerca,
+.operai-lista-alta,
+.operaio-lista,
+#operaiListaSinistra,
+#collaboratoriSalvati,
+#cantieriSalvati,
+#lavoriSalvati,
+.tag-list {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.suggerimento-voce,
+.operaio-mini-btn,
+.operaio-quick,
+.operaio-btn,
+.tag button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(17, 24, 39, 0.10);
+}
+
+.ricerca-rapida-safe-box input {
+  touch-action: manipulation;
+}
