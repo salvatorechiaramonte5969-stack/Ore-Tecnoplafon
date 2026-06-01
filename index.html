@@ -855,6 +855,9 @@
     </div>
   </main>
 
+  <!-- WORKHUB FIX V109: nasconde eventuale codice grezzo dopo il login senza toccare logica/calcoli. -->
+  <div id="workhub-script-blocks-hidden-v109" style="display:none !important; visibility:hidden !important;" aria-hidden="true">
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 <script id="workhub-ripristino-login-originale">
@@ -9099,6 +9102,7 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
 })();
 <\/script>
 
+  </div>
 </body>
 </html>`;
 
@@ -9919,62 +9923,3 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
   setInterval(aggiornaBottoni, 1200);
 })();
 </script>
-
-<!-- FIX LOGIN STABILE V107: mostra solo login, evita blocchi sovrapposti e mantiene nascosti i contenuti finche non si entra. -->
-<style id="workhub-login-stabile-v107-style">
-  body.workhub-auth-login header,
-  body.workhub-auth-login main > .grid,
-  body.workhub-auth-login #collabQuickPanel,
-  body.workhub-auth-login .solo-admin,
-  body.workhub-auth-login .operai-panel { display: none !important; }
-  body.workhub-auth-login main { max-width: none !important; padding: 0 !important; }
-  body.workhub-auth-login .workhub-login-wrap {
-    display: flex !important; min-height: 100dvh !important; align-items: center !important; justify-content: center !important;
-    padding: max(14px, env(safe-area-inset-top)) 12px max(18px, env(safe-area-inset-bottom)) !important; background: #f3f4f6 !important;
-  }
-  body.workhub-auth-login #supabaseLoginBox {
-    display: block !important; visibility: visible !important; opacity: 1 !important; max-width: 520px !important;
-    width: min(520px, calc(100vw - 24px)) !important; margin: 0 auto !important; position: relative !important; z-index: 10 !important;
-  }
-  body.workhub-auth-login #supabaseLoginBox input, body.workhub-auth-login #supabaseLoginBox button { max-width: 100% !important; }
-  body.workhub-auth-admin .workhub-login-wrap, body.workhub-auth-admin #collabQuickPanel { display: none !important; }
-  body.workhub-auth-admin .grid { display: grid !important; }
-  body.workhub-auth-collaboratore .workhub-login-wrap, body.workhub-auth-collaboratore .grid, body.workhub-auth-collaboratore .solo-admin, body.workhub-auth-collaboratore .operai-panel { display: none !important; }
-  body.workhub-auth-collaboratore #collabQuickPanel { display: block !important; }
-</style>
-<script id="workhub-login-stabile-v107-script">
-(function () {
-  "use strict";
-  if (window.__workhubLoginStabileV107) return;
-  window.__workhubLoginStabileV107 = true;
-  function trovaTokenSupabase() {
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = String(localStorage.key(i) || "").toLowerCase();
-        var v = localStorage.getItem(localStorage.key(i));
-        if (k.indexOf("supabase") !== -1 && k.indexOf("auth") !== -1 && v) return true;
-      }
-    } catch (_) {}
-    return false;
-  }
-  function mostraSoloLogin() {
-    document.body.classList.add("workhub-auth-login");
-    document.body.classList.remove("workhub-auth-admin", "workhub-auth-collaboratore", "vista-collaboratore");
-    var login = document.querySelector(".workhub-login-wrap");
-    if (login) { login.hidden = false; login.style.display = "flex"; login.style.visibility = "visible"; login.style.opacity = "1"; }
-    var box = document.getElementById("supabaseLoginBox");
-    if (box) { box.hidden = false; box.style.display = "block"; box.style.visibility = "visible"; box.style.opacity = "1"; }
-    var email = document.getElementById("supabaseEmail");
-    if (email && !email.value) email.value = "info@tecnoplafon.ch";
-  }
-  function stabilizza() {
-    if (!document.body) return;
-    var giaDentro = document.body.classList.contains("workhub-auth-admin") || document.body.classList.contains("workhub-auth-collaboratore") || document.body.classList.contains("vista-collaboratore");
-    if (!giaDentro && !trovaTokenSupabase()) mostraSoloLogin();
-  }
-  document.addEventListener("DOMContentLoaded", function () { stabilizza(); setTimeout(stabilizza, 100); setTimeout(stabilizza, 500); setTimeout(stabilizza, 1200); });
-  window.addEventListener("load", function () { setTimeout(stabilizza, 200); setTimeout(stabilizza, 900); });
-})();
-</script>
-</body>
-</html>
