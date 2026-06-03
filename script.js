@@ -4959,64 +4959,49 @@ ${descrizione}`)) return;
 
     function collabAppMostraSezione(sezione) {
       const home = document.getElementById("collabHomeScreen");
-      const pannello = document.getElementById("collabQuickPanel");
-      const mappa = {
-        ore: "collabViewOre",
-        mese: "collabViewMese",
-        vacanze: "collabViewVacanze",
-        stampa: "collabViewStampa"
-      };
-      const sezioneValida = Object.prototype.hasOwnProperty.call(mappa, sezione);
-
-      if (home && sezioneValida) {
-        home.classList.add("pagina-collaboratore-aperta");
-        home.classList.remove("menu-collaboratore-aperto");
+      if (home) {
+        home.classList.remove("workhub-menu-attivo", "workhub-v112-menu");
+        home.classList.add("workhub-sezione-aperta", "workhub-v112-pagina-aperta");
       }
-
-      Object.keys(mappa).forEach(nome => {
-        const pagina = document.getElementById(mappa[nome]);
-        if (!pagina) return;
+      ["ore", "mese", "vacanze", "stampa"].forEach(nome => {
+        const id = "collabView" + nome.charAt(0).toUpperCase() + nome.slice(1);
+        const view = document.getElementById(id);
         const attiva = nome === sezione;
-        pagina.classList.toggle("attiva", attiva);
-        pagina.hidden = !attiva;
+        if (view) {
+          view.classList.toggle("attiva", attiva);
+          view.classList.toggle("workhub-view-attiva", attiva);
+          view.classList.toggle("workhub-v112-attiva", attiva);
+          view.style.display = attiva ? "block" : "none";
+        }
       });
-
+      const pannello = document.getElementById("collabQuickPanel");
       if (pannello) pannello.classList.toggle("aperto", sezione === "ore");
       collabQuickAggiornaScelte();
       collabQuickRenderOggi();
       collabQuickRenderMese();
       collabAppRenderVacanze();
+      const idAttiva = { ore: "collabViewOre", mese: "collabViewMese", vacanze: "collabViewVacanze", stampa: "collabViewStampa" }[sezione];
+      const attiva = idAttiva ? document.getElementById(idAttiva) : null;
+      if (attiva && typeof attiva.scrollIntoView === "function") {
+        setTimeout(() => attiva.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" }), 30);
+      }
       if (sezione === "ore") setTimeout(() => collabQuickMostraSuggerimentiCantiere(), 80);
-
-      const paginaAttiva = sezioneValida ? document.getElementById(mappa[sezione]) : null;
-      setTimeout(() => {
-        try {
-          if (paginaAttiva && typeof paginaAttiva.scrollIntoView === "function") {
-            paginaAttiva.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
-          } else if (pannello && typeof pannello.scrollIntoView === "function") {
-            pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
-          }
-        } catch (errore) {}
-      }, 30);
     }
 
     function collabAppChiudiSezioni() {
       const home = document.getElementById("collabHomeScreen");
       if (home) {
-        home.classList.remove("pagina-collaboratore-aperta");
-        home.classList.add("menu-collaboratore-aperto");
+        home.classList.remove("workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+        home.classList.add("workhub-menu-attivo", "workhub-v112-menu");
       }
       ["collabViewOre", "collabViewMese", "collabViewVacanze", "collabViewStampa"].forEach(id => {
-        const pagina = document.getElementById(id);
-        if (!pagina) return;
-        pagina.classList.remove("attiva");
-        pagina.hidden = true;
+        const view = document.getElementById(id);
+        if (view) {
+          view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva");
+          view.style.display = "none";
+        }
       });
       document.getElementById("collabQuickPanel")?.classList.remove("aperto");
-      const pannello = document.getElementById("collabQuickPanel");
-      setTimeout(() => {
-        try { if (pannello && typeof pannello.scrollIntoView === "function") pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" }); } catch (errore) {}
-      }, 30);
     }
 
     function collabAppCaricaVacanze() {
@@ -6126,6 +6111,7 @@ ${descrizione}`)) return;
       return;
     }
     tpEditId = r.id;
+    window.workhubTpEditId = r.id;
     tpEditOriginale = { ...r };
     const cantiere = document.getElementById("collabQuickCantiere");
     const lavoro = document.getElementById("collabQuickLavoro");
@@ -6145,6 +6131,7 @@ ${descrizione}`)) return;
 
   window.tpCollabAnnullaModifica = function () {
     tpEditId = null;
+    window.workhubTpEditId = null;
     tpEditOriginale = null;
     ["collabQuickOre", "collabQuickNota"].forEach(id => {
       const el = document.getElementById(id);
@@ -6281,6 +6268,7 @@ ${descrizione}`)) return;
     ore = (Array.isArray(ore) ? ore : []).map(x => String(x.id) === String(rigaAggiornata.id) ? rigaAggiornata : x);
     salvaStorage();
     tpEditId = null;
+    window.workhubTpEditId = null;
     tpEditOriginale = null;
     tpAggiornaBottone();
     ["collabQuickOre", "collabQuickNota"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
@@ -7064,7 +7052,9 @@ ${descrizione}`)) return;
       if (dataInput && dataInput.value !== oggi) dataInput.value = oggi;
       const nome = (typeof collabQuickNomeUtente === 'function') ? collabQuickNomeUtente() : (document.getElementById('collabAppNomeInput')?.value || '');
       const oreQuick = Number(document.getElementById('collabQuickOre')?.value || 0);
-      if (!window.workhubValidaBloccoGiornoELimite(nome, oggi, oreQuick, null, true)) return false;
+      const btnSalva = document.querySelector('#collabQuickForm button[onclick*="collabQuickSalva"]');
+      const idModifica = window.workhubTpEditId || (btnSalva && btnSalva.getAttribute('data-tp-edit') ? window.workhubTpEditId : null);
+      if (!window.workhubValidaBloccoGiornoELimite(nome, oggi, oreQuick, idModifica || null, true)) return false;
       return await collabQuickSalvaPrecedente.apply(this, arguments);
     };
   }
@@ -7740,4 +7730,30 @@ ${descrizione}`)) return;
   });
 
   document.addEventListener('focusin', function () { setTimeout(miglioraCaselleRicercaRapida, 80); });
+})();
+
+
+/* WorkHub V115 - Fix modifica ore collaboratore e limite 8.50
+   Quando si corregge una riga gia esistente, il controllo 8.50 esclude quella riga.
+   Cosi la modifica aggiorna la riga invece di essere bloccata come nuova aggiunta. */
+(function () {
+  if (window.__workhubFixModificaOreLimiteV115) return;
+  window.__workhubFixModificaOreLimiteV115 = true;
+
+  function bottoneSalvaQuick() {
+    return document.querySelector('#collabQuickForm button[onclick*="collabQuickSalva"]');
+  }
+
+  function statoModificaAttivo() {
+    const btn = bottoneSalvaQuick();
+    return !!(window.workhubTpEditId || (btn && btn.getAttribute('data-tp-edit') === '1'));
+  }
+
+  const validaPrecedente = window.workhubValidaBloccoGiornoELimite;
+  if (typeof validaPrecedente === 'function') {
+    window.workhubValidaBloccoGiornoELimite = function (collaboratore, dataIso, oreDaAggiungere, idEscluso, mostraMessaggio) {
+      const idCorretto = idEscluso || (statoModificaAttivo() ? window.workhubTpEditId : null);
+      return validaPrecedente.call(this, collaboratore, dataIso, oreDaAggiungere, idCorretto, mostraMessaggio);
+    };
+  }
 })();
