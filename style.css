@@ -3594,28 +3594,9 @@ body.workhub-economica-solo .workhub-econ-close-solo {
 }
 
 
-/* V114 - Area collaboratore: quando si sceglie un bottone, si vede solo la pagina scelta. */
-#collabHomeScreen.pagina-collaboratore-aperta > .collab-home-card {
+/* V120: solo estetica - nasconde il bottone nelle schede collaboratore/operaio senza eliminare il codice dietro. */
+.quick-download-btn {
   display: none !important;
-}
-#collabHomeScreen.pagina-collaboratore-aperta > .collab-app-view {
-  display: none !important;
-  margin-top: 0 !important;
-}
-#collabHomeScreen.pagina-collaboratore-aperta > .collab-app-view.attiva {
-  display: block !important;
-}
-#collabHomeScreen.menu-collaboratore-aperto > .collab-home-card {
-  display: block !important;
-}
-#collabHomeScreen.menu-collaboratore-aperto > .collab-app-view {
-  display: none !important;
-}
-#collabHomeScreen.pagina-collaboratore-aperta .collab-app-view-head {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #ffffff;
-  padding-top: 6px;
-  padding-bottom: 10px;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
