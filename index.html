@@ -10,7 +10,7 @@
   <title>Ore Tecnoplafon WorkHub</title>
   
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style_fix_modifica_ore_v121.css">
 
   <style id="workhub-celle-chiare-foglio-mensile">
     /* Foglio mensile: campi più larghi e leggibili, senza cambiare i calcoli. */
@@ -859,7 +859,7 @@
   <div id="workhub-script-blocks-hidden-v109" style="display:none !important; visibility:hidden !important;" aria-hidden="true">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js"></script>
+  <script src="script_fix_modifica_ore_v121.js"></script>
 <script id="workhub-ripristino-login-originale">
   /* Ripristino login originale: usa le funzioni native di script.js per Admin/Dipendente e area collaboratore a 4 bottoni. */
   (function () {
@@ -9104,186 +9104,1516 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
 
   </div>
 
-  <style id="workhub-v113-pagine-collaboratore-full">
-    /* V113 - Area collaboratore: il bottone apre solo la pagina scelta, senza lasciare il menu sopra. */
-    #collabHomeScreen.workhub-v113-pagina-aperta > .collab-home-card,
-    #collabHomeScreen.workhub-v113-pagina-aperta .collab-home-card {
-      display: none !important;
+<script id="workhub-v117-comando-bottoni-collaboratore">
+/* V117 - Ripristina il comando dei 4 bottoni collaboratore.
+   Inserire ore / Resoconto mensile / Chiedere vacanze / Stampa aprono subito solo la pagina scelta. */
+(function () {
+  if (window.__workhubV116ComandoBottoniCollaboratore) return;
+  window.__workhubV116ComandoBottoniCollaboratore = true;
+
+  var MAPPA = {
+    ore: "collabViewOre",
+    mese: "collabViewMese",
+    vacanze: "collabViewVacanze",
+    stampa: "collabViewStampa"
+  };
+
+  function home() { return document.getElementById("collabHomeScreen"); }
+  function pannello() { return document.getElementById("collabQuickPanel"); }
+
+  function portaSu(el) {
+    try {
+      var target = pannello() || el;
+      if (target && typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+      }
+    } catch (_) {}
+  }
+
+  function apriPagina(tipo) {
+    var box = home();
+    var id = MAPPA[tipo] || "";
+    var pagina = id ? document.getElementById(id) : null;
+    if (!box || !pagina) return false;
+
+    box.classList.remove("workhub-menu-attivo", "workhub-v112-menu");
+    box.classList.add("workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      var attiva = k === tipo;
+      view.classList.toggle("attiva", attiva);
+      view.classList.toggle("workhub-view-attiva", attiva);
+      view.classList.toggle("workhub-v112-attiva", attiva);
+      view.style.display = attiva ? "block" : "none";
+    });
+
+    var p = pannello();
+    if (p) p.classList.toggle("aperto", tipo === "ore");
+
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
+    try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
+    try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
+    if (tipo === "ore") setTimeout(function () { try { collabQuickMostraSuggerimentiCantiere(); } catch (_) {} }, 80);
+
+    portaSu(pagina);
+    return true;
+  }
+
+  function apriMenu() {
+    var box = home();
+    if (!box) return false;
+    box.classList.remove("workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+    box.classList.add("workhub-menu-attivo", "workhub-v112-menu");
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva");
+      view.style.display = "none";
+    });
+    var p = pannello();
+    if (p) p.classList.remove("aperto");
+    portaSu(box);
+    return true;
+  }
+
+  window.collabAppMostraSezione = function (tipo) { apriPagina(tipo); };
+  window.collabAppChiudiSezioni = function () { apriMenu(); };
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-app-menu-btn") : null;
+    if (!btn) return;
+    setTimeout(function () {
+      var attiva = document.querySelector("#collabHomeScreen .collab-app-view.attiva, #collabHomeScreen .collab-app-view.workhub-view-attiva, #collabHomeScreen .collab-app-view.workhub-v112-attiva");
+      if (attiva) portaSu(attiva);
+    }, 60);
+  }, true);
+
+  document.addEventListener("DOMContentLoaded", function () { setTimeout(apriMenu, 250); });
+  window.addEventListener("load", function () { setTimeout(apriMenu, 300); });
+})();
+</script>
+
+
+
+<!-- WORKHUB V118: patch SOLO VISIVO per i 4 bottoni collaboratore.
+     Non cambia salvataggi, Supabase, calcoli, limite 8.50, AVS, trasferte o vacanze.
+     Quando si tocca un bottone, nasconde il menu e mostra subito solo la pagina scelta. -->
+<style id="workhub-v118-bottoni-apri-solo-pagina">
+  #collabHomeScreen.workhub-v118-aperta > .collab-home-card,
+  #collabHomeScreen.workhub-v118-aperta .collab-home-card {
+    display: none !important;
+  }
+  #collabHomeScreen.workhub-v118-aperta .collab-app-view {
+    display: none !important;
+    margin-top: 0 !important;
+  }
+  #collabHomeScreen.workhub-v118-aperta .collab-app-view.workhub-v118-attiva {
+    display: block !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+  #collabHomeScreen.workhub-v118-menu > .collab-home-card,
+  #collabHomeScreen.workhub-v118-menu .collab-home-card {
+    display: block !important;
+  }
+  #collabHomeScreen.workhub-v118-menu .collab-app-view {
+    display: none !important;
+  }
+</style>
+<script id="workhub-v118-bottoni-apri-solo-pagina">
+(function () {
+  if (window.__workhubV118BottoniApriSoloPagina) return;
+  window.__workhubV118BottoniApriSoloPagina = true;
+
+  var MAPPA = {
+    ore: "collabViewOre",
+    mese: "collabViewMese",
+    vacanze: "collabViewVacanze",
+    stampa: "collabViewStampa"
+  };
+
+  function home() { return document.getElementById("collabHomeScreen"); }
+  function pannello() { return document.getElementById("collabQuickPanel"); }
+  function cardMenu() {
+    var h = home();
+    return h ? h.querySelector(".collab-home-card") : null;
+  }
+
+  function portaInAlto() {
+    var p = pannello() || home();
+    try {
+      if (p && typeof p.scrollIntoView === "function") {
+        p.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+      }
+    } catch (_) {}
+  }
+
+  function apriPagina(tipo) {
+    var h = home();
+    var id = MAPPA[tipo];
+    var pagina = id ? document.getElementById(id) : null;
+    if (!h || !pagina) return false;
+
+    h.classList.remove("workhub-v118-menu", "workhub-menu-attivo", "workhub-v112-menu");
+    h.classList.add("workhub-v118-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+
+    var menu = cardMenu();
+    if (menu) menu.style.setProperty("display", "none", "important");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      var attiva = k === tipo;
+      view.classList.toggle("attiva", attiva);
+      view.classList.toggle("workhub-view-attiva", attiva);
+      view.classList.toggle("workhub-v112-attiva", attiva);
+      view.classList.toggle("workhub-v118-attiva", attiva);
+      view.style.setProperty("display", attiva ? "block" : "none", "important");
+      if (attiva) {
+        view.style.setProperty("margin-top", "0", "important");
+        view.style.setProperty("padding-top", "0", "important");
+      }
+    });
+
+    var p = pannello();
+    if (p) p.classList.toggle("aperto", tipo === "ore");
+
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
+    try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
+    try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
+    if (tipo === "ore") setTimeout(function () { try { if (typeof collabQuickMostraSuggerimentiCantiere === "function") collabQuickMostraSuggerimentiCantiere(); } catch (_) {} }, 80);
+
+    setTimeout(portaInAlto, 0);
+    setTimeout(portaInAlto, 80);
+    return true;
+  }
+
+  function apriMenu() {
+    var h = home();
+    if (!h) return false;
+
+    h.classList.remove("workhub-v118-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+    h.classList.add("workhub-v118-menu", "workhub-menu-attivo", "workhub-v112-menu");
+
+    var menu = cardMenu();
+    if (menu) menu.style.removeProperty("display");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v118-attiva");
+      view.style.setProperty("display", "none", "important");
+    });
+
+    var p = pannello();
+    if (p) p.classList.remove("aperto");
+    setTimeout(portaInAlto, 0);
+    return true;
+  }
+
+  window.collabAppMostraSezione = apriPagina;
+  window.collabAppChiudiSezioni = apriMenu;
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-app-menu-btn") : null;
+    if (!btn) return;
+
+    var testo = (btn.textContent || "").toLowerCase();
+    var tipo = testo.indexOf("resoconto") !== -1 ? "mese" :
+      testo.indexOf("vacanze") !== -1 ? "vacanze" :
+      testo.indexOf("stampa") !== -1 ? "stampa" : "ore";
+
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(function () { apriPagina(tipo); }, 0);
+  }, true);
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-back-btn") : null;
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(apriMenu, 0);
+  }, true);
+
+  document.addEventListener("DOMContentLoaded", function () { setTimeout(apriMenu, 350); });
+})();
+</script>
+
+
+<!-- WORKHUB V119: raccolta collaboratore pulita: un solo pulsante e calendario grande a schermo. Solo interfaccia, non modifica calcoli/ore/Supabase. -->
+<style id="workhub-v119-raccolta-pulita-style">
+  .workhub-v119-nascondi-raccolta {
+    display: none !important;
+  }
+
+  /* La raccolta deve essere leggibile come il file scaricato: larga, pulita e con scroll orizzontale. */
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande {
+    width: calc(100vw - 32px) !important;
+    max-width: none !important;
+    margin-left: 50% !important;
+    transform: translateX(-50%) !important;
+    border: 2px solid #dbeafe !important;
+    border-radius: 22px !important;
+    background: #ffffff !important;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.10) !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande > summary {
+    background: #0b74ee !important;
+    color: #ffffff !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 16px 20px !important;
+    font-size: 20px !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande .resoconto-content {
+    padding: 18px !important;
+  }
+
+  /* Nella raccolta restano solo collaboratore e date: i bottoni doppi dentro il pannello vengono nascosti. */
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41,
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix {
+    display: grid !important;
+    grid-template-columns: minmax(260px, 1.2fr) minmax(180px, .8fr) minmax(180px, .8fr) !important;
+    gap: 12px !important;
+    align-items: end !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41 button,
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix button {
+    display: none !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel select,
+  #workhubRaccoltaCollaboratorePanel input[type="date"] {
+    min-height: 54px !important;
+    border-radius: 14px !important;
+    font-size: 18px !important;
+  }
+
+  #workhubRaccoltaPreview {
+    width: 100% !important;
+  }
+
+  #workhubRaccoltaPreview .calendar-scroll,
+  #workhubRaccoltaPreview .workhub-raccolta-table-wrap-v41,
+  #workhubRaccoltaPreview .scroll-x {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    border: 1px solid #dbeafe !important;
+  }
+
+  #workhubRaccoltaPreview table {
+    border-collapse: collapse !important;
+    width: max-content !important;
+    min-width: 1450px !important;
+    background: #ffffff !important;
+  }
+
+  #workhubRaccoltaPreview th,
+  #workhubRaccoltaPreview td {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    padding: 7px 8px !important;
+    vertical-align: middle !important;
+  }
+
+  #workhubRaccoltaPreview .cantiere-col,
+  #workhubRaccoltaPreview th:first-child,
+  #workhubRaccoltaPreview td:first-child {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 5 !important;
+    background: #ffffff !important;
+    box-shadow: 1px 0 0 #e5e7eb !important;
+  }
+
+  #workhubRaccoltaPreview h1,
+  #workhubRaccoltaPreview h2,
+  #workhubRaccoltaPreview h3 {
+    color: #111827 !important;
+  }
+
+  #workhubRaccoltaStato {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+  }
+
+  @media (max-width: 760px) {
+    #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande {
+      width: calc(100vw - 12px) !important;
     }
-    #collabHomeScreen.workhub-v113-pagina-aperta > .collab-app-view,
-    #collabHomeScreen.workhub-v113-pagina-aperta .collab-app-view {
-      display: none !important;
-      margin-top: 0 !important;
-      padding-top: 0 !important;
+    #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41,
+    #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix {
+      grid-template-columns: 1fr !important;
     }
-    #collabHomeScreen.workhub-v113-pagina-aperta > .collab-app-view.workhub-v113-attiva,
-    #collabHomeScreen.workhub-v113-pagina-aperta .collab-app-view.workhub-v113-attiva {
-      display: block !important;
-      margin-top: 0 !important;
-      padding-top: 0 !important;
-    }
-    #collabHomeScreen.workhub-v113-menu > .collab-home-card,
-    #collabHomeScreen.workhub-v113-menu .collab-home-card {
-      display: block !important;
-    }
-    #collabHomeScreen.workhub-v113-menu > .collab-app-view,
-    #collabHomeScreen.workhub-v113-menu .collab-app-view {
-      display: none !important;
-    }
-    #collabHomeScreen.workhub-v113-pagina-aperta .collab-app-view-head {
-      position: sticky;
-      top: 0;
-      z-index: 6;
-      background: #ffffff;
-      padding: 4px 0 10px;
-    }
-  </style>
+  }
+</style>
+<script id="workhub-v119-raccolta-pulita-script">
+(function () {
+  "use strict";
+  if (window.__workhubV119RaccoltaPulita) return;
+  window.__workhubV119RaccoltaPulita = true;
 
-  <script id="workhub-v113-pagine-collaboratore-full">
-    /*
-      V113 - Solo navigazione grafica area collaboratore.
-      Non modifica login, Supabase, salvataggi, ore, AVS, trasferte, vacanze o calcoli.
-      Tocco su un bottone = pagina scelta visibile subito, menu nascosto.
-    */
-    (function () {
-      const MAPPA = {
-        ore: "collabViewOre",
-        mese: "collabViewMese",
-        vacanze: "collabViewVacanze",
-        stampa: "collabViewStampa"
-      };
+  function testo(el) { return String((el && el.textContent) || "").replace(/\s+/g, " ").trim().toLowerCase(); }
+  function $(id) { return document.getElementById(id); }
+  function val(id) { var el = $(id); return el ? String(el.value || "").trim() : ""; }
 
-      function home() {
-        return document.getElementById("collabHomeScreen");
-      }
+  function ePulsanteRaccolta(btn) {
+    return btn && /apri\s+raccolta\s+collaboratore/i.test(btn.textContent || "");
+  }
 
-      function aggiornaContenuti(tipo) {
-        try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
-        try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
-        try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
-        try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
-        if (tipo === "ore") {
-          setTimeout(function () {
-            try { if (typeof collabQuickMostraSuggerimentiCantiere === "function") collabQuickMostraSuggerimentiCantiere(); } catch (_) {}
-          }, 90);
-        }
-      }
+  function pulsantiRaccoltaVisibili() {
+    return Array.from(document.querySelectorAll("button")).filter(ePulsanteRaccolta);
+  }
 
-      function vaiInAlto() {
-        const pannello = document.getElementById("collabQuickPanel") || home();
-        try {
-          if (pannello && typeof pannello.scrollIntoView === "function") {
-            pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
-          }
-        } catch (_) {}
-        setTimeout(function () {
-          try {
-            if (pannello && typeof pannello.scrollIntoView === "function") {
-              pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
-            }
-          } catch (_) {}
-        }, 80);
-      }
+  function trovaPulsantePrincipale(btns) {
+    return btns.find(function (b) { return b.closest && b.closest("#toolbarFoglioMensile"); }) || btns[0] || null;
+  }
 
-      function apriPagina(tipo) {
-        const box = home();
-        const id = MAPPA[tipo] || "";
-        const pagina = id ? document.getElementById(id) : null;
-        if (!box || !pagina) return false;
-
-        box.classList.remove("workhub-v113-menu", "workhub-menu-attivo", "workhub-v112-menu");
-        box.classList.add("workhub-v113-pagina-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
-
-        box.querySelectorAll(".collab-app-view").forEach(function (view) {
-          view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v113-attiva");
-          view.style.display = "none";
-        });
-
-        pagina.classList.add("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v113-attiva");
-        pagina.style.display = "block";
-        aggiornaContenuti(tipo);
-        vaiInAlto();
-        return false;
-      }
-
-      function apriMenu() {
-        const box = home();
-        if (!box) return false;
-        box.classList.remove("workhub-v113-pagina-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
-        box.classList.add("workhub-v113-menu", "workhub-menu-attivo", "workhub-v112-menu");
-        box.querySelectorAll(".collab-app-view").forEach(function (view) {
-          view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v113-attiva");
-          view.style.display = "none";
-        });
-        vaiInAlto();
-        return false;
-      }
-
-      function tipoDaBottone(btn) {
-        const onclick = String(btn.getAttribute("onclick") || "");
-        const match = onclick.match(/collabAppMostraSezione\(['\"]([^'\"]+)['\"]\)/);
-        if (match && match[1]) return match[1];
-        const testo = String(btn.textContent || "").toLowerCase();
-        if (testo.indexOf("ore") !== -1) return "ore";
-        if (testo.indexOf("mensile") !== -1 || testo.indexOf("mese") !== -1) return "mese";
-        if (testo.indexOf("vacanze") !== -1) return "vacanze";
-        if (testo.indexOf("stampa") !== -1) return "stampa";
-        return "";
-      }
-
-      function installaBottoniDiretti() {
-        document.querySelectorAll(".collab-app-menu-btn").forEach(function (btn) {
-          if (btn.dataset.workhubV113Installato === "1") return;
-          const tipo = tipoDaBottone(btn);
-          if (!tipo) return;
-          btn.dataset.workhubV113Tipo = tipo;
-          btn.dataset.workhubV113Installato = "1";
-          btn.removeAttribute("onclick");
-          btn.addEventListener("click", function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation();
-            apriPagina(tipo);
-            return false;
-          }, true);
-        });
-
-        document.querySelectorAll(".collab-back-btn").forEach(function (btn) {
-          if (btn.dataset.workhubV113Installato === "1") return;
-          btn.dataset.workhubV113Installato = "1";
-          btn.removeAttribute("onclick");
-          btn.addEventListener("click", function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation();
-            apriMenu();
-            return false;
-          }, true);
-        });
-      }
-
-      function installa() {
-        installaBottoniDiretti();
-        window.collabAppMostraSezione = function (tipo) { return apriPagina(tipo); };
-        window.collabAppChiudiSezioni = function () { return apriMenu(); };
-        setTimeout(installaBottoniDiretti, 300);
-        setTimeout(installaBottoniDiretti, 1000);
-        setTimeout(function () {
-          const box = home();
-          if (box && !box.classList.contains("workhub-v113-pagina-aperta")) apriMenu();
-        }, 350);
-      }
-
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", installa);
+  function pulisciPulsantiDoppi() {
+    var btns = pulsantiRaccoltaVisibili();
+    if (!btns.length) return;
+    var principale = trovaPulsantePrincipale(btns);
+    btns.forEach(function (b) {
+      if (b === principale) {
+        b.classList.remove("workhub-v119-nascondi-raccolta");
+        b.textContent = "Apri raccolta collaboratore";
+        b.dataset.workhubV119RaccoltaPrincipale = "1";
+        b.title = "Apre la raccolta collaboratore leggibile a schermo";
       } else {
-        installa();
+        b.classList.add("workhub-v119-nascondi-raccolta");
+        b.dataset.workhubV119RaccoltaDoppione = "1";
       }
-      window.addEventListener("load", function () { setTimeout(installa, 200); });
-      window.workhubV113ApriPaginaCollaboratore = apriPagina;
-      window.workhubV113ApriMenuCollaboratore = apriMenu;
-    })();
-  </script>
+    });
+  }
+
+  function sincronizzaFiltri() {
+    var collab = val("filtroCollaboratore") || val("ricercaVeloceCollaboratoreFoglio") || val("workhubRaccoltaCollaboratoreFiltro") || val("collaboratore") || val("collabAppNomeInput");
+    var dal = val("filtroDal") || val("workhubRaccoltaDal");
+    var al = val("filtroAl") || val("workhubRaccoltaAl");
+    var rf = $("workhubRaccoltaCollaboratoreFiltro");
+    var rd = $("workhubRaccoltaDal");
+    var ra = $("workhubRaccoltaAl");
+    if (rf && collab) {
+      rf.value = collab;
+      if (rf.value !== collab) {
+        var q = collab.toLowerCase();
+        Array.from(rf.options || []).some(function (opt) {
+          var v = String(opt.value || opt.textContent || "").toLowerCase();
+          if (v === q || v.indexOf(q) !== -1 || q.indexOf(v) !== -1) { rf.value = opt.value; return true; }
+          return false;
+        });
+      }
+    }
+    if (rd && dal) rd.value = dal;
+    if (ra && al) ra.value = al;
+  }
+
+  function preparaPannello() {
+    if (typeof window.workhubApriRaccoltaCollaboratoreV103 === "function") {
+      try { window.workhubApriRaccoltaCollaboratoreV103({ preventDefault: function () {}, stopPropagation: function () {} }); } catch (e) { console.warn("Raccolta V119 apertura:", e); }
+    }
+    var panel = $("workhubRaccoltaCollaboratorePanel");
+    if (panel) {
+      panel.open = true;
+      panel.classList.add("workhub-v119-raccolta-grande");
+    }
+    sincronizzaFiltri();
+    if (typeof window.workhubRaccoltaCollaboratoreRender === "function") {
+      try { window.workhubRaccoltaCollaboratoreRender(); } catch (e2) { console.warn("Raccolta V119 render:", e2); }
+    }
+    panel = $("workhubRaccoltaCollaboratorePanel");
+    if (panel) panel.classList.add("workhub-v119-raccolta-grande");
+    return panel;
+  }
+
+  function apriRaccoltaPulita(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    pulisciPulsantiDoppi();
+    var panel = preparaPannello();
+    setTimeout(function () {
+      pulisciPulsantiDoppi();
+      panel = preparaPannello() || panel;
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return false;
+  }
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest("button") : null;
+    if (!btn || !ePulsanteRaccolta(btn)) return;
+    if (btn.classList.contains("workhub-v119-nascondi-raccolta")) {
+      event.preventDefault();
+      event.stopPropagation();
+      return false;
+    }
+    return apriRaccoltaPulita(event);
+  }, true);
+
+  ["change", "input"].forEach(function (ev) {
+    document.addEventListener(ev, function (event) {
+      var id = event.target && event.target.id;
+      if (id === "workhubRaccoltaCollaboratoreFiltro" || id === "workhubRaccoltaDal" || id === "workhubRaccoltaAl") {
+        setTimeout(function () {
+          if (typeof window.workhubRaccoltaCollaboratoreRender === "function") window.workhubRaccoltaCollaboratoreRender();
+          var p = $("workhubRaccoltaCollaboratorePanel");
+          if (p) p.classList.add("workhub-v119-raccolta-grande");
+        }, 0);
+      }
+    }, true);
+  });
+
+  window.workhubApriRaccoltaCollaboratorePulitaV119 = apriRaccoltaPulita;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    pulisciPulsantiDoppi();
+    setTimeout(pulisciPulsantiDoppi, 600);
+    setTimeout(function () { var p = $("workhubRaccoltaCollaboratorePanel"); if (p) p.classList.add("workhub-v119-raccolta-grande"); }, 900);
+  });
+  window.addEventListener("load", function () {
+    setTimeout(pulisciPulsantiDoppi, 400);
+    setTimeout(pulisciPulsantiDoppi, 1400);
+  });
+  setInterval(pulisciPulsantiDoppi, 1600);
+})();
+</script>
+
+
+
+<style id="workhub-v120-nascondi-bottone-scarica-schede-solo-visivo">
+  /* V120: nasconde solo visivamente il bottone nelle schede collaboratore/operaio.
+     Non rimuove funzioni, onclick, calcoli, Supabase, ore, AVS o trasferte. */
+  .quick-download-btn {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+</style>
+
+
+
+<script id="workhub-fix-lavorazioni-supabase-v121">
+/* V121 - Caricamento lavorazioni da Supabase nei menu a tendina.
+   Correzione solo sincronizzazione/visuale menu: non modifica calcoli, ore, AVS, trasferte o limite 8.50. */
+(function () {
+  const AZIENDA_ID_FALLBACK = "21af7afa-cbcb-45b9-9a84-f9f9ad68b7fd";
+  let ultimoCaricamento = 0;
+
+  function aziendaId() {
+    try {
+      if (typeof SUPABASE_AZIENDA_ID === "string" && SUPABASE_AZIENDA_ID) return SUPABASE_AZIENDA_ID;
+    } catch (_) {}
+    return AZIENDA_ID_FALLBACK;
+  }
+
+  function testoPulitoSafe(v) {
+    try {
+      if (typeof testoPulito === "function") return testoPulito(v);
+    } catch (_) {}
+    return String(v ?? "").trim().replace(/\s+/g, " ");
+  }
+
+  function normalizzaSafe(lista) {
+    try {
+      if (typeof normalizzaListaVoci === "function") return normalizzaListaVoci(lista);
+    } catch (_) {}
+    const m = new Map();
+    (Array.isArray(lista) ? lista : []).forEach(function (v) {
+      const p = testoPulitoSafe(v);
+      if (!p) return;
+      const k = p.toLocaleLowerCase("it-CH");
+      if (!m.has(k)) m.set(k, p);
+    });
+    return Array.from(m.values()).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function aggiornaMenu() {
+    try { if (typeof salvaVociMenu === "function") salvaVociMenu(); } catch (_) {}
+    try { if (typeof aggiornaMenuTendina === "function") aggiornaMenuTendina(); } catch (_) {}
+    try { if (typeof aggiornaVociVisibili === "function") aggiornaVociVisibili(); } catch (_) {}
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof mostraSuggerimentiLavoro === "function") mostraSuggerimentiLavoro(); } catch (_) {}
+    try { if (typeof collabQuickMostraSuggerimentiLavoro === "function") collabQuickMostraSuggerimentiLavoro(); } catch (_) {}
+  }
+
+  async function caricaLavorazioniOnline(forza) {
+    const adesso = Date.now();
+    if (!forza && adesso - ultimoCaricamento < 15000) return;
+    ultimoCaricamento = adesso;
+
+    try {
+      if (typeof inizializzaSupabase !== "function") return;
+      const client = inizializzaSupabase();
+      if (!client || typeof client.from !== "function") return;
+
+      let sessione = null;
+      try {
+        if (typeof supabaseSessioneCorrente === "function") sessione = await supabaseSessioneCorrente();
+      } catch (_) {}
+      if (!sessione && typeof supabaseUtente !== "undefined" && !supabaseUtente) return;
+
+      let res = await client
+        .from("lavorazioni")
+        .select("id,nome,attivo")
+        .eq("azienda_id", aziendaId())
+        .eq("attivo", true)
+        .order("nome", { ascending: true });
+
+      if (res && res.error) {
+        console.warn("Caricamento lavorazioni con azienda_id non riuscito, riprovo senza filtro azienda:", res.error);
+        res = await client
+          .from("lavorazioni")
+          .select("id,nome,attivo")
+          .eq("attivo", true)
+          .order("nome", { ascending: true });
+      }
+
+      if (res && res.error) {
+        console.warn("Caricamento lavorazioni Supabase non riuscito:", res.error);
+        return;
+      }
+
+      const righe = Array.isArray(res && res.data) ? res.data : [];
+      if (!righe.length) return;
+
+      if (typeof vociMenu === "undefined" || !vociMenu) return;
+      if (!Array.isArray(vociMenu.lavori)) vociMenu.lavori = [];
+      if (!vociMenu._supabaseIds) vociMenu._supabaseIds = { collaboratori: {}, cantieri: {}, lavori: {} };
+      if (!vociMenu._supabaseIds.lavori) vociMenu._supabaseIds.lavori = {};
+
+      righe.forEach(function (r) {
+        const nome = testoPulitoSafe(r && r.nome);
+        if (!nome) return;
+        vociMenu.lavori.push(nome);
+        if (r.id) vociMenu._supabaseIds.lavori[nome] = r.id;
+      });
+
+      vociMenu.lavori = normalizzaSafe(vociMenu.lavori);
+      aggiornaMenu();
+    } catch (err) {
+      console.warn("Caricamento lavorazioni Supabase non riuscito:", err);
+    }
+  }
+
+  window.workhubRicaricaLavorazioniSupabase = function () {
+    return caricaLavorazioniOnline(true);
+  };
+
+  function installa() {
+    if (window.__workhubFixLavorazioniSupabaseV121) return;
+    window.__workhubFixLavorazioniSupabaseV121 = true;
+
+    const originaleCarica = window.supabaseCaricaDati;
+    if (typeof originaleCarica === "function" && !originaleCarica.__workhubFixLavorazioniV121) {
+      window.supabaseCaricaDati = async function () {
+        const risultato = await originaleCarica.apply(this, arguments);
+        await caricaLavorazioniOnline(true);
+        return risultato;
+      };
+      window.supabaseCaricaDati.__workhubFixLavorazioniV121 = true;
+    }
+
+    ["aggiungiLavoroConId", "aggiungiVoceManuale", "supabaseAssicuraVoce"].forEach(function (nomeFunzione) {
+      const originale = window[nomeFunzione];
+      if (typeof originale !== "function" || originale.__workhubFixLavorazioniV121) return;
+      window[nomeFunzione] = async function () {
+        const risultato = await originale.apply(this, arguments);
+        setTimeout(function () { caricaLavorazioniOnline(true); }, 500);
+        return risultato;
+      };
+      window[nomeFunzione].__workhubFixLavorazioniV121 = true;
+    });
+
+    document.addEventListener("focusin", function (ev) {
+      const id = ev && ev.target && ev.target.id;
+      if (id === "lavoro" || id === "collabQuickLavoro" || id === "selectLavoroInserimento" || id === "selectLavoroGestione") {
+        caricaLavorazioniOnline(false);
+      }
+    });
+
+    document.addEventListener("click", function (ev) {
+      const t = ev && ev.target;
+      if (!t) return;
+      const id = t.id || "";
+      const testo = String(t.textContent || "");
+      if (id === "toggleGestioneLavoriBtn" || id === "selectLavoroGestione" || testo.includes("lavoro svolto")) {
+        caricaLavorazioniOnline(false);
+      }
+    });
+
+    setTimeout(function () { caricaLavorazioniOnline(true); }, 1200);
+    setTimeout(function () { caricaLavorazioniOnline(true); }, 3500);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(installa, 300);
+    setTimeout(installa, 1200);
+  });
+  setTimeout(installa, 2000);
+})();
+</script>
+
+
+
+<style id="workhub-v122-lavorazioni-vuote-chiare-style">
+  /* V122: messaggio chiaro solo per le lavorazioni quando non ci sono voci salvate. */
+  #lavoriSalvati .workhub-lavorazioni-empty-v122,
+  #lavoriPerIdGestione .workhub-lavorazioni-empty-v122 {
+    display: block !important;
+    margin: 10px 0 !important;
+    padding: 14px 16px !important;
+    border: 2px dashed #cbd5e1 !important;
+    border-radius: 18px !important;
+    background: #f8fafc !important;
+    color: #334155 !important;
+    font-size: 17px !important;
+    line-height: 1.35 !important;
+    font-weight: 800 !important;
+  }
+  #lavoriSalvati .workhub-lavorazioni-empty-v122 small,
+  #lavoriPerIdGestione .workhub-lavorazioni-empty-v122 small {
+    display: block !important;
+    margin-top: 4px !important;
+    color: #64748b !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+  }
+</style>
+
+<script id="workhub-v122-lavorazioni-vuote-chiare-script">
+  /*
+    V122 - Lavorazioni chiare quando la lista e' vuota.
+    Tocca solo la parte lavorazioni/lavoro svolto:
+    - se non ci sono voci, mostra un messaggio leggibile;
+    - se una lavorazione viene aggiunta o caricata da Supabase, il messaggio sparisce;
+    - non modifica operai, cantieri, ore, calcoli o salvataggi.
+  */
+  (function () {
+    if (window.__workhubLavorazioniVuoteChiareV122) return;
+    window.__workhubLavorazioniVuoteChiareV122 = true;
+
+    var EMPTY_CLASS = 'workhub-lavorazioni-empty-v122';
+    var STORAGE_ECON = 'workhub_lavorazioni_id_principale_sottovoci_v1';
+
+    function norm(v) {
+      return String(v || '').trim();
+    }
+
+    function hasArrayItems(v) {
+      return Array.isArray(v) && v.filter(function (x) { return norm(x); }).length > 0;
+    }
+
+    function storageHaLavorazioni() {
+      try {
+        var econ = JSON.parse(localStorage.getItem(STORAGE_ECON) || '[]');
+        if (Array.isArray(econ) && econ.length > 0) return true;
+      } catch (_) {}
+      return false;
+    }
+
+    function memoriaHaLavorazioni() {
+      try {
+        if (window.vociMenu && hasArrayItems(window.vociMenu.lavori)) return true;
+        var possibili = ['lavori', 'lavorazioni', 'lavoriSvolti', 'tipologieLavoro', 'workhubLavorazioni'];
+        for (var i = 0; i < possibili.length; i++) {
+          if (hasArrayItems(window[possibili[i]])) return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
+    function selectHaLavorazioni() {
+      var ids = ['selectLavoroGestione', 'selectLavoroInserimento', 'listaLavori', 'collabQuickListaLavori'];
+      for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (!el) continue;
+        var options = Array.from(el.querySelectorAll('option')).filter(function (op) {
+          var val = norm(op.value || op.textContent || '');
+          return val && !/^(seleziona|scegli)\b/i.test(val);
+        });
+        if (options.length > 0) return true;
+      }
+      return false;
+    }
+
+    function contenitoreHaRigheReali(box) {
+      if (!box) return false;
+      return Array.from(box.children).some(function (el) {
+        if (!el || el.classList.contains(EMPTY_CLASS)) return false;
+        var txt = norm(el.textContent || '');
+        return !!txt && !/^nessuna lavorazione/i.test(txt);
+      });
+    }
+
+    function messaggio(testo, aiuto) {
+      var div = document.createElement('div');
+      div.className = EMPTY_CLASS;
+      div.setAttribute('data-workhub-empty-lavorazioni', '1');
+      div.innerHTML = testo + '<small>' + aiuto + '</small>';
+      return div;
+    }
+
+    function aggiornaBoxVuoto(id, testo, aiuto) {
+      var box = document.getElementById(id);
+      if (!box) return;
+
+      var vecchi = Array.from(box.querySelectorAll('.' + EMPTY_CLASS));
+      var haRighe = contenitoreHaRigheReali(box);
+      var haDatiAltrove = memoriaHaLavorazioni() || selectHaLavorazioni() || storageHaLavorazioni();
+
+      if (haRighe || haDatiAltrove) {
+        vecchi.forEach(function (el) { el.remove(); });
+        return;
+      }
+
+      if (!vecchi.length) {
+        box.appendChild(messaggio(testo, aiuto));
+      }
+    }
+
+    function aggiornaLavorazioniVuote() {
+      aggiornaBoxVuoto(
+        'lavoriSalvati',
+        'Nessuna lavorazione salvata.',
+        'La lista lavoro svolto e vuota: aggiungi una nuova lavorazione con ID e voce sopra.'
+      );
+
+      var richiamo = document.getElementById('richiamaLavoroId');
+      var q = richiamo ? norm(richiamo.value) : '';
+      if (q) {
+        aggiornaBoxVuoto(
+          'lavoriPerIdGestione',
+          'Nessuna lavorazione trovata per questo ID.',
+          'Controlla l ID scritto oppure crea prima la lavorazione.'
+        );
+      } else {
+        var boxId = document.getElementById('lavoriPerIdGestione');
+        if (boxId) Array.from(boxId.querySelectorAll('.' + EMPTY_CLASS)).forEach(function (el) { el.remove(); });
+      }
+    }
+
+    function avvolgi(nomeFunzione) {
+      var originale = window[nomeFunzione];
+      if (typeof originale !== 'function' || originale.__workhubLavorazioniVuoteV122) return;
+      window[nomeFunzione] = function () {
+        var risultato = originale.apply(this, arguments);
+        setTimeout(aggiornaLavorazioniVuote, 0);
+        setTimeout(aggiornaLavorazioniVuote, 250);
+        return risultato;
+      };
+      window[nomeFunzione].__workhubLavorazioniVuoteV122 = true;
+    }
+
+    function installaObserver(id) {
+      var box = document.getElementById(id);
+      if (!box || box.__workhubLavorazioniVuoteObserverV122 || typeof MutationObserver === 'undefined') return;
+      box.__workhubLavorazioniVuoteObserverV122 = true;
+      new MutationObserver(function () { setTimeout(aggiornaLavorazioniVuote, 0); })
+        .observe(box, { childList: true, subtree: true });
+    }
+
+    function init() {
+      ['aggiornaMenu', 'aggiornaListeLavori', 'aggiungiLavoroConId', 'mostraLavorazioniPerIdGestione', 'workhubAggiornaLavorazioniEconomiche', 'workhubRicaricaLavorazioniSupabase'].forEach(avvolgi);
+      installaObserver('lavoriSalvati');
+      installaObserver('lavoriPerIdGestione');
+      aggiornaLavorazioniVuote();
+      setTimeout(aggiornaLavorazioniVuote, 500);
+      setTimeout(aggiornaLavorazioniVuote, 1500);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+    window.addEventListener('load', function () { setTimeout(init, 300); });
+    document.addEventListener('input', function (ev) {
+      var id = ev && ev.target && ev.target.id;
+      if (id === 'richiamaLavoroId' || id === 'nuovoLavoro' || id === 'nuovoLavoroId' || id === 'nuovoLavoroReparto') {
+        setTimeout(aggiornaLavorazioniVuote, 0);
+      }
+    });
+    setInterval(aggiornaLavorazioniVuote, 2500);
+  })();
+</script>
+
+
+
+<style id="workhub-lavorazioni-touch-v123-style">
+  /* V123: scelta lavorazioni piu' comoda su telefono.
+     Aggiunge un vero menu grande da toccare nell'app collaboratore, senza cambiare calcoli o salvataggi. */
+  #workhubSelectTouchCollabLavoroV123 {
+    display: block !important;
+    width: 100% !important;
+    min-height: 64px !important;
+    margin: 10px 0 8px !important;
+    padding: 0 18px !important;
+    border: 2px solid #0d6efd !important;
+    border-radius: 18px !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: rgba(13, 110, 253, 0.18) !important;
+  }
+
+  #workhubSelectTouchCollabLavoroV123:focus {
+    outline: none !important;
+    border-color: #0b5ed7 !important;
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.16) !important;
+  }
+
+  .workhub-lavorazioni-touch-aiuto-v123 {
+    margin: 0 0 8px !important;
+    padding: 9px 12px !important;
+    border: 1px solid #bfdbfe !important;
+    border-radius: 14px !important;
+    background: #eff6ff !important;
+    color: #1e3a8a !important;
+    font-size: 15px !important;
+    line-height: 1.35 !important;
+  }
+
+  @media (max-width: 700px) {
+    #workhubSelectTouchCollabLavoroV123 {
+      min-height: 68px !important;
+      font-size: 21px !important;
+      border-radius: 20px !important;
+    }
+
+    #collabQuickSuggerimentiLavoro {
+      max-height: 45vh !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+
+    #collabQuickSuggerimentiLavoro button,
+    #collabQuickSuggerimentiLavoro .suggestion,
+    #collabQuickSuggerimentiLavoro div {
+      min-height: 54px !important;
+      font-size: 18px !important;
+      padding-top: 14px !important;
+      padding-bottom: 14px !important;
+      touch-action: manipulation !important;
+    }
+  }
+</style>
+
+<script id="workhub-lavorazioni-touch-v123-script">
+  /*
+    V123 - App collaboratore: selezione lavorazioni con tocco.
+    Il campo vecchio resta attivo, ma sotto viene aggiunto un select nativo grande:
+    su telefono basta toccare e scegliere la lavorazione, evitando i suggerimenti delicati.
+  */
+  (function () {
+    if (window.__workhubLavorazioniTouchV123) return;
+    window.__workhubLavorazioniTouchV123 = true;
+
+    function pulito(v) {
+      return String(v || '').trim().replace(/\s+/g, ' ');
+    }
+
+    function chiave(v) {
+      return pulito(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function esc(v) {
+      return String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function aggiungiVoce(lista, visti, valore) {
+      valore = pulito(valore);
+      if (!valore) return;
+      if (/^(scegli|seleziona|tocca|menu)/i.test(valore)) return;
+      var k = chiave(valore);
+      if (!k || visti[k]) return;
+      visti[k] = true;
+      lista.push(valore);
+    }
+
+    function vociDaArray(lista, visti, arr) {
+      if (!Array.isArray(arr)) return;
+      arr.forEach(function (item) {
+        if (typeof item === 'string') aggiungiVoce(lista, visti, item);
+        else if (item && typeof item === 'object') aggiungiVoce(lista, visti, item.nome || item.voce || item.lavoro || item.descrizione || item.label || item.value);
+      });
+    }
+
+    function vociLavorazioni() {
+      var lista = [];
+      var visti = {};
+
+      ['collabQuickListaLavori', 'listaLavori'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        Array.from(el.querySelectorAll('option')).forEach(function (opt) {
+          aggiungiVoce(lista, visti, opt.value || opt.textContent);
+        });
+      });
+
+      ['selectLavoroInserimento', 'selectLavoroGestione'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        Array.from(el.options || []).forEach(function (opt) {
+          aggiungiVoce(lista, visti, opt.value || opt.textContent);
+        });
+      });
+
+      try {
+        if (window.vociMenu) {
+          vociDaArray(lista, visti, window.vociMenu.lavori);
+          vociDaArray(lista, visti, window.vociMenu.lavorazioni);
+        }
+      } catch (_) {}
+
+      ['lavoriSvolti', 'tipologieLavoro', 'workhubLavorazioni', 'lavorazioni'].forEach(function (nome) {
+        try { vociDaArray(lista, visti, window[nome]); } catch (_) {}
+      });
+
+      try {
+        ['lavoriSvolti', 'tipologieLavoro', 'workhubLavorazioni', 'lavorazioni'].forEach(function (key) {
+          var raw = localStorage.getItem(key);
+          if (!raw) return;
+          try { vociDaArray(lista, visti, JSON.parse(raw)); }
+          catch (_) { raw.split(/[\n,;]/).forEach(function (x) { aggiungiVoce(lista, visti, x); }); }
+        });
+      } catch (_) {}
+
+      return lista.sort(function (a, b) { return a.localeCompare(b, 'it', { sensitivity: 'base' }); });
+    }
+
+    function creaSelect() {
+      var input = document.getElementById('collabQuickLavoro');
+      if (!input) return null;
+
+      var select = document.getElementById('workhubSelectTouchCollabLavoroV123');
+      if (!select) {
+        select = document.createElement('select');
+        select.id = 'workhubSelectTouchCollabLavoroV123';
+        select.setAttribute('aria-label', 'Scegli lavorazione con tocco');
+        select.innerHTML = '<option value="">Tocca qui e scegli lavorazione</option>';
+
+        var aiuto = document.createElement('div');
+        aiuto.className = 'workhub-lavorazioni-touch-aiuto-v123';
+        aiuto.textContent = 'Se il campo sopra e\' troppo sensibile, usa questo menu: tocca una volta e scegli la lavorazione.';
+
+        var datalist = document.getElementById('collabQuickListaLavori');
+        if (datalist && datalist.parentNode) {
+          datalist.insertAdjacentElement('afterend', select);
+          select.insertAdjacentElement('afterend', aiuto);
+        } else {
+          input.insertAdjacentElement('afterend', select);
+          select.insertAdjacentElement('afterend', aiuto);
+        }
+
+        select.addEventListener('change', function () {
+          var valore = pulito(select.value);
+          if (!valore) return;
+          input.value = valore;
+          input.dataset.workhubSelezionatoTouchV123 = '1';
+          try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+          try { input.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
+          var box = document.getElementById('collabQuickSuggerimentiLavoro');
+          if (box) box.style.display = 'none';
+          if (document.activeElement === input) input.blur();
+        });
+      }
+      return select;
+    }
+
+    function aggiornaSelect() {
+      var input = document.getElementById('collabQuickLavoro');
+      var select = creaSelect();
+      if (!input || !select) return;
+
+      var valoreCorrente = pulito(input.value || select.value || '');
+      var voci = vociLavorazioni();
+      var html = '<option value="">Tocca qui e scegli lavorazione</option>';
+      voci.forEach(function (voce) {
+        html += '<option value="' + esc(voce) + '">' + esc(voce) + '</option>';
+      });
+
+      if (select.dataset.workhubHtmlV123 !== html) {
+        select.innerHTML = html;
+        select.dataset.workhubHtmlV123 = html;
+      }
+
+      var match = voci.find(function (voce) { return chiave(voce) === chiave(valoreCorrente); });
+      select.value = match || '';
+    }
+
+    function avvolgi(nome) {
+      var originale = window[nome];
+      if (typeof originale !== 'function' || originale.__workhubTouchLavorazioniV123) return;
+      window[nome] = function () {
+        var risultato = originale.apply(this, arguments);
+        setTimeout(aggiornaSelect, 0);
+        setTimeout(aggiornaSelect, 250);
+        return risultato;
+      };
+      window[nome].__workhubTouchLavorazioniV123 = true;
+    }
+
+    function installa() {
+      creaSelect();
+      aggiornaSelect();
+      ['aggiornaMenu', 'aggiornaListeLavori', 'workhubAggiornaLavorazioniEconomiche', 'workhubRicaricaLavorazioniSupabase', 'collabQuickMostraSuggerimentiLavoro', 'mostraSuggerimentiLavoro'].forEach(avvolgi);
+
+      var input = document.getElementById('collabQuickLavoro');
+      if (input && !input.__workhubTouchLavorazioniV123) {
+        input.__workhubTouchLavorazioniV123 = true;
+        input.addEventListener('focus', aggiornaSelect);
+        input.addEventListener('input', function () { setTimeout(aggiornaSelect, 80); });
+      }
+
+      var datalist = document.getElementById('collabQuickListaLavori');
+      if (datalist && !datalist.__workhubTouchObserverV123 && typeof MutationObserver !== 'undefined') {
+        datalist.__workhubTouchObserverV123 = true;
+        new MutationObserver(function () { setTimeout(aggiornaSelect, 0); }).observe(datalist, { childList: true, subtree: true, attributes: true });
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      installa();
+      setTimeout(installa, 300);
+      setTimeout(installa, 1200);
+      setTimeout(installa, 2500);
+    });
+    window.addEventListener('load', function () { setTimeout(installa, 300); });
+    setInterval(function () { aggiornaSelect(); }, 2500);
+  })();
+</script>
+
+
+
+<style id="workhub-lavorazioni-touch-sicuro-v125-style">
+  /* V125: scelta lavorazione sicura su telefono. Niente selezione accidentale mentre si sfiora/scorre. */
+  #workhubSelectTouchCollabLavoroV123 {
+    position: absolute !important;
+    left: -99999px !important;
+    top: auto !important;
+    width: 1px !important;
+    height: 1px !important;
+    min-height: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  #workhubLavTouchButtonV125 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    width: 100% !important;
+    min-height: 76px !important;
+    margin: 8px 0 10px !important;
+    padding: 14px 18px !important;
+    border: 3px solid #0d6efd !important;
+    border-radius: 22px !important;
+    background: #eaf3ff !important;
+    color: #0f172a !important;
+    font-size: 20px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: rgba(13,110,253,0.20) !important;
+  }
+
+  #workhubLavTouchButtonV125 .workhub-lav-testo-v125 {
+    display: block !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  #workhubLavTouchButtonV125 .workhub-lav-freccia-v125 {
+    flex: 0 0 auto !important;
+    font-size: 24px !important;
+  }
+
+  #workhubLavTouchPanelV125 {
+    display: none !important;
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    z-index: 999999 !important;
+    max-height: 78dvh !important;
+    padding: 14px !important;
+    border: 2px solid #0d6efd !important;
+    border-radius: 24px !important;
+    background: #ffffff !important;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35) !important;
+    box-sizing: border-box !important;
+  }
+
+  #workhubLavTouchPanelV125.aperto {
+    display: block !important;
+  }
+
+  #workhubLavTouchPanelV125 .workhub-lav-head-v125 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    margin-bottom: 10px !important;
+  }
+
+  #workhubLavTouchPanelV125 .workhub-lav-head-v125 strong {
+    font-size: 19px !important;
+    color: #0f172a !important;
+  }
+
+  #workhubLavTouchCloseV125 {
+    width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 16px !important;
+    border: 2px solid #e2e8f0 !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    font-size: 22px !important;
+    font-weight: 900 !important;
+  }
+
+  #workhubLavTouchSearchV125 {
+    display: block !important;
+    width: 100% !important;
+    min-height: 58px !important;
+    margin: 0 0 10px !important;
+    padding: 0 16px !important;
+    border: 2px solid #bfdbfe !important;
+    border-radius: 18px !important;
+    background: #eff6ff !important;
+    color: #0f172a !important;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    box-sizing: border-box !important;
+  }
+
+  #workhubLavTouchListV125 {
+    max-height: calc(78dvh - 150px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+    touch-action: pan-y !important;
+    padding: 2px 2px 80px !important;
+  }
+
+  #workhubLavTouchListV125 .workhub-lav-riga-v125 {
+    display: block !important;
+    width: 100% !important;
+    min-height: 64px !important;
+    margin: 0 0 8px !important;
+    padding: 13px 14px !important;
+    border: 2px solid #dbeafe !important;
+    border-radius: 18px !important;
+    background: #f8fbff !important;
+    color: #0f172a !important;
+    font-size: 18px !important;
+    font-weight: 850 !important;
+    line-height: 1.25 !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    touch-action: pan-y !important;
+  }
+
+  #workhubLavTouchListV125 .workhub-lav-riga-v125:active {
+    background: #dbeafe !important;
+    border-color: #0d6efd !important;
+  }
+
+  #workhubLavTouchListV125 .workhub-lav-id-v125 {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 58px !important;
+    margin-right: 8px !important;
+    padding: 4px 8px !important;
+    border-radius: 999px !important;
+    background: #0d6efd !important;
+    color: #ffffff !important;
+    font-size: 15px !important;
+    font-weight: 950 !important;
+    vertical-align: middle !important;
+  }
+
+  #workhubLavTouchHintV125 {
+    margin: 8px 0 0 !important;
+    color: #475569 !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+  }
+
+  body.workhub-lav-panel-aperto-v125 {
+    overflow: hidden !important;
+  }
+</style>
+
+<script id="workhub-lavorazioni-touch-sicuro-v125-script">
+  /*
+    V125 - Touch sicuro lavorazioni:
+    - sostituisce il menu nativo con un bottone blu + pannello grande;
+    - lo scroll verticale NON seleziona mai una lavorazione;
+    - una lavorazione si sceglie solo con un tocco fermo sulla riga;
+    - mantiene il valore nel campo originale collabQuickLavoro, quindi salvataggi/calcoli restano invariati.
+  */
+  (function () {
+    if (window.__workhubLavorazioniTouchSicuroV125) return;
+    window.__workhubLavorazioniTouchSicuroV125 = true;
+
+    var startY = 0;
+    var startX = 0;
+    var moved = false;
+    var lastTouchSelect = 0;
+
+    function pulito(v) { return String(v || '').trim().replace(/\s+/g, ' '); }
+    function norm(v) {
+      return pulito(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+    function esc(v) {
+      return String(v || '').replace(/[&<>\"]/g, function (c) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
+      });
+    }
+    function idDaLabel(label) {
+      var m = String(label || '').match(/\bID\s*0*(\d+)\b/i);
+      return m ? 'ID' + String(Number(m[1])).padStart(3, '0') : '';
+    }
+    function testoSenzaId(label) {
+      return pulito(String(label || '').replace(/^\s*ID\s*0*\d+\s*-?\s*/i, ''));
+    }
+    function inputOriginale() { return document.getElementById('collabQuickLavoro'); }
+    function selectVecchio() { return document.getElementById('workhubSelectTouchCollabLavoroV123'); }
+
+    function leggiVociDaSelect() {
+      var select = selectVecchio();
+      var out = [];
+      var visti = {};
+      if (select) {
+        Array.from(select.options || []).forEach(function (opt) {
+          var label = pulito(opt.value || opt.textContent || '');
+          if (!label || /tocca qui|scegli lavorazione|seleziona/i.test(label)) return;
+          var k = norm(label);
+          if (k && !visti[k]) {
+            visti[k] = true;
+            out.push(label);
+          }
+        });
+      }
+      return out;
+    }
+
+    function assicuraElementi() {
+      var select = selectVecchio();
+      var input = inputOriginale();
+      if (!input) return null;
+
+      var btn = document.getElementById('workhubLavTouchButtonV125');
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'workhubLavTouchButtonV125';
+        btn.innerHTML = '<span class="workhub-lav-testo-v125">Tocca qui e scegli lavorazione con ID</span><span class="workhub-lav-freccia-v125">⌄</span>';
+        (select || input).insertAdjacentElement('afterend', btn);
+      }
+
+      var panel = document.getElementById('workhubLavTouchPanelV125');
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'workhubLavTouchPanelV125';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-label', 'Scegli lavorazione');
+        panel.innerHTML = [
+          '<div class="workhub-lav-head-v125"><strong>Scegli lavorazione</strong><button type="button" id="workhubLavTouchCloseV125" aria-label="Chiudi">×</button></div>',
+          '<input id="workhubLavTouchSearchV125" type="search" inputmode="search" autocomplete="off" placeholder="Cerca ID o lavorazione" />',
+          '<div id="workhubLavTouchListV125"></div>',
+          '<p id="workhubLavTouchHintV125">Puoi scorrere la lista senza selezionare. La lavorazione entra solo quando tocchi fermo una riga.</p>'
+        ].join('');
+        document.body.appendChild(panel);
+      }
+
+      return { input: input, select: select, btn: btn, panel: panel };
+    }
+
+    function aggiornaBottone() {
+      var el = assicuraElementi();
+      if (!el) return;
+      var valore = pulito(el.input.value || (el.select && el.select.value) || '');
+      var span = el.btn.querySelector('.workhub-lav-testo-v125');
+      if (span) span.textContent = valore || 'Tocca qui e scegli lavorazione con ID';
+    }
+
+    function renderLista() {
+      var el = assicuraElementi();
+      if (!el) return;
+      if (window.workhubAggiornaLavorazioniMobileUnicaV124) {
+        try { window.workhubAggiornaLavorazioniMobileUnicaV124(); } catch (_) {}
+      }
+      var q = norm((document.getElementById('workhubLavTouchSearchV125') || {}).value || '');
+      var list = document.getElementById('workhubLavTouchListV125');
+      if (!list) return;
+
+      var voci = leggiVociDaSelect();
+      if (q) {
+        voci = voci.filter(function (label) { return norm(label).includes(q); });
+      }
+      if (!voci.length) {
+        list.innerHTML = '<div class="workhub-lav-riga-v125">Nessuna lavorazione trovata</div>';
+        return;
+      }
+      list.innerHTML = voci.map(function (label) {
+        var id = idDaLabel(label);
+        var nome = testoSenzaId(label);
+        var badge = id ? '<span class="workhub-lav-id-v125">' + esc(id) + '</span>' : '';
+        return '<button type="button" class="workhub-lav-riga-v125" data-valore="' + esc(label) + '">' + badge + esc(nome || label) + '</button>';
+      }).join('');
+    }
+
+    function apriPanel() {
+      var el = assicuraElementi();
+      if (!el) return;
+      renderLista();
+      el.panel.classList.add('aperto');
+      document.body.classList.add('workhub-lav-panel-aperto-v125');
+      setTimeout(function () {
+        var search = document.getElementById('workhubLavTouchSearchV125');
+        if (search) { try { search.focus(); } catch (_) {} }
+      }, 80);
+    }
+
+    function chiudiPanel() {
+      var panel = document.getElementById('workhubLavTouchPanelV125');
+      if (panel) panel.classList.remove('aperto');
+      document.body.classList.remove('workhub-lav-panel-aperto-v125');
+    }
+
+    function scegliValore(valore) {
+      var el = assicuraElementi();
+      valore = pulito(valore);
+      if (!el || !valore || /nessuna lavorazione/i.test(valore)) return;
+
+      el.input.value = valore;
+      el.input.dataset.workhubSelezionatoTouchV125 = '1';
+      if (el.select) el.select.value = valore;
+      try { el.input.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+      try { el.input.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
+      try { if (el.select) el.select.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
+      aggiornaBottone();
+      chiudiPanel();
+    }
+
+    function installa() {
+      var el = assicuraElementi();
+      if (!el) return;
+      aggiornaBottone();
+
+      if (!el.btn.__workhubV125) {
+        el.btn.__workhubV125 = true;
+        el.btn.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          apriPanel();
+        }, true);
+      }
+
+      var close = document.getElementById('workhubLavTouchCloseV125');
+      if (close && !close.__workhubV125) {
+        close.__workhubV125 = true;
+        close.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          chiudiPanel();
+        }, true);
+      }
+
+      var search = document.getElementById('workhubLavTouchSearchV125');
+      if (search && !search.__workhubV125) {
+        search.__workhubV125 = true;
+        search.addEventListener('input', renderLista, true);
+      }
+
+      var list = document.getElementById('workhubLavTouchListV125');
+      if (list && !list.__workhubV125) {
+        list.__workhubV125 = true;
+        list.addEventListener('touchstart', function (ev) {
+          var t = ev.touches && ev.touches[0];
+          startY = t ? t.clientY : 0;
+          startX = t ? t.clientX : 0;
+          moved = false;
+        }, { capture: true, passive: true });
+        list.addEventListener('touchmove', function (ev) {
+          var t = ev.touches && ev.touches[0];
+          if (!t) return;
+          if (Math.abs(t.clientY - startY) > 10 || Math.abs(t.clientX - startX) > 10) moved = true;
+        }, { capture: true, passive: true });
+        list.addEventListener('touchend', function (ev) {
+          var btn = ev.target && ev.target.closest && ev.target.closest('.workhub-lav-riga-v125');
+          if (!btn || moved) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+          lastTouchSelect = Date.now();
+          scegliValore(btn.getAttribute('data-valore') || btn.textContent || '');
+        }, { capture: true, passive: false });
+        list.addEventListener('click', function (ev) {
+          if (Date.now() - lastTouchSelect < 650) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }
+          var btn = ev.target && ev.target.closest && ev.target.closest('.workhub-lav-riga-v125');
+          if (!btn) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          scegliValore(btn.getAttribute('data-valore') || btn.textContent || '');
+        }, true);
+      }
+
+      if (el.select && !el.select.__workhubV125Block) {
+        el.select.__workhubV125Block = true;
+        el.select.addEventListener('focus', function () { try { el.select.blur(); } catch (_) {} }, true);
+      }
+    }
+
+    var originalAggiorna = window.workhubAggiornaLavorazioniMobileUnicaV124;
+    window.workhubAggiornaLavorazioniMobileUnicaV125 = function () {
+      if (typeof originalAggiorna === 'function') {
+        try { originalAggiorna(); } catch (_) {}
+      }
+      installa();
+      renderLista();
+      aggiornaBottone();
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+      installa();
+      setTimeout(installa, 300);
+      setTimeout(function () { installa(); renderLista(); }, 1200);
+      setTimeout(function () { installa(); renderLista(); }, 2600);
+    });
+    window.addEventListener('load', function () { setTimeout(function () { installa(); renderLista(); }, 350); });
+    setInterval(function () { installa(); aggiornaBottone(); }, 2500);
+  })();
+</script>
 
 </body>
 </html>`;
@@ -9846,6 +11176,670 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
 })();
 </script>
 
+
+<script id="workhub-v117-comando-bottoni-collaboratore">
+/* V117 - Ripristina il comando dei 4 bottoni collaboratore.
+   Inserire ore / Resoconto mensile / Chiedere vacanze / Stampa aprono subito solo la pagina scelta. */
+(function () {
+  if (window.__workhubV116ComandoBottoniCollaboratore) return;
+  window.__workhubV116ComandoBottoniCollaboratore = true;
+
+  var MAPPA = {
+    ore: "collabViewOre",
+    mese: "collabViewMese",
+    vacanze: "collabViewVacanze",
+    stampa: "collabViewStampa"
+  };
+
+  function home() { return document.getElementById("collabHomeScreen"); }
+  function pannello() { return document.getElementById("collabQuickPanel"); }
+
+  function portaSu(el) {
+    try {
+      var target = pannello() || el;
+      if (target && typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+      }
+    } catch (_) {}
+  }
+
+  function apriPagina(tipo) {
+    var box = home();
+    var id = MAPPA[tipo] || "";
+    var pagina = id ? document.getElementById(id) : null;
+    if (!box || !pagina) return false;
+
+    box.classList.remove("workhub-menu-attivo", "workhub-v112-menu");
+    box.classList.add("workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      var attiva = k === tipo;
+      view.classList.toggle("attiva", attiva);
+      view.classList.toggle("workhub-view-attiva", attiva);
+      view.classList.toggle("workhub-v112-attiva", attiva);
+      view.style.display = attiva ? "block" : "none";
+    });
+
+    var p = pannello();
+    if (p) p.classList.toggle("aperto", tipo === "ore");
+
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
+    try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
+    try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
+    if (tipo === "ore") setTimeout(function () { try { collabQuickMostraSuggerimentiCantiere(); } catch (_) {} }, 80);
+
+    portaSu(pagina);
+    return true;
+  }
+
+  function apriMenu() {
+    var box = home();
+    if (!box) return false;
+    box.classList.remove("workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+    box.classList.add("workhub-menu-attivo", "workhub-v112-menu");
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva");
+      view.style.display = "none";
+    });
+    var p = pannello();
+    if (p) p.classList.remove("aperto");
+    portaSu(box);
+    return true;
+  }
+
+  window.collabAppMostraSezione = function (tipo) { apriPagina(tipo); };
+  window.collabAppChiudiSezioni = function () { apriMenu(); };
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-app-menu-btn") : null;
+    if (!btn) return;
+    setTimeout(function () {
+      var attiva = document.querySelector("#collabHomeScreen .collab-app-view.attiva, #collabHomeScreen .collab-app-view.workhub-view-attiva, #collabHomeScreen .collab-app-view.workhub-v112-attiva");
+      if (attiva) portaSu(attiva);
+    }, 60);
+  }, true);
+
+  document.addEventListener("DOMContentLoaded", function () { setTimeout(apriMenu, 250); });
+  window.addEventListener("load", function () { setTimeout(apriMenu, 300); });
+})();
+</script>
+
+
+
+<!-- WORKHUB V118: patch SOLO VISIVO per i 4 bottoni collaboratore.
+     Non cambia salvataggi, Supabase, calcoli, limite 8.50, AVS, trasferte o vacanze.
+     Quando si tocca un bottone, nasconde il menu e mostra subito solo la pagina scelta. -->
+<style id="workhub-v118-bottoni-apri-solo-pagina">
+  #collabHomeScreen.workhub-v118-aperta > .collab-home-card,
+  #collabHomeScreen.workhub-v118-aperta .collab-home-card {
+    display: none !important;
+  }
+  #collabHomeScreen.workhub-v118-aperta .collab-app-view {
+    display: none !important;
+    margin-top: 0 !important;
+  }
+  #collabHomeScreen.workhub-v118-aperta .collab-app-view.workhub-v118-attiva {
+    display: block !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+  #collabHomeScreen.workhub-v118-menu > .collab-home-card,
+  #collabHomeScreen.workhub-v118-menu .collab-home-card {
+    display: block !important;
+  }
+  #collabHomeScreen.workhub-v118-menu .collab-app-view {
+    display: none !important;
+  }
+</style>
+<script id="workhub-v118-bottoni-apri-solo-pagina">
+(function () {
+  if (window.__workhubV118BottoniApriSoloPagina) return;
+  window.__workhubV118BottoniApriSoloPagina = true;
+
+  var MAPPA = {
+    ore: "collabViewOre",
+    mese: "collabViewMese",
+    vacanze: "collabViewVacanze",
+    stampa: "collabViewStampa"
+  };
+
+  function home() { return document.getElementById("collabHomeScreen"); }
+  function pannello() { return document.getElementById("collabQuickPanel"); }
+  function cardMenu() {
+    var h = home();
+    return h ? h.querySelector(".collab-home-card") : null;
+  }
+
+  function portaInAlto() {
+    var p = pannello() || home();
+    try {
+      if (p && typeof p.scrollIntoView === "function") {
+        p.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+      }
+    } catch (_) {}
+  }
+
+  function apriPagina(tipo) {
+    var h = home();
+    var id = MAPPA[tipo];
+    var pagina = id ? document.getElementById(id) : null;
+    if (!h || !pagina) return false;
+
+    h.classList.remove("workhub-v118-menu", "workhub-menu-attivo", "workhub-v112-menu");
+    h.classList.add("workhub-v118-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+
+    var menu = cardMenu();
+    if (menu) menu.style.setProperty("display", "none", "important");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      var attiva = k === tipo;
+      view.classList.toggle("attiva", attiva);
+      view.classList.toggle("workhub-view-attiva", attiva);
+      view.classList.toggle("workhub-v112-attiva", attiva);
+      view.classList.toggle("workhub-v118-attiva", attiva);
+      view.style.setProperty("display", attiva ? "block" : "none", "important");
+      if (attiva) {
+        view.style.setProperty("margin-top", "0", "important");
+        view.style.setProperty("padding-top", "0", "important");
+      }
+    });
+
+    var p = pannello();
+    if (p) p.classList.toggle("aperto", tipo === "ore");
+
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
+    try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
+    try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
+    if (tipo === "ore") setTimeout(function () { try { if (typeof collabQuickMostraSuggerimentiCantiere === "function") collabQuickMostraSuggerimentiCantiere(); } catch (_) {} }, 80);
+
+    setTimeout(portaInAlto, 0);
+    setTimeout(portaInAlto, 80);
+    return true;
+  }
+
+  function apriMenu() {
+    var h = home();
+    if (!h) return false;
+
+    h.classList.remove("workhub-v118-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+    h.classList.add("workhub-v118-menu", "workhub-menu-attivo", "workhub-v112-menu");
+
+    var menu = cardMenu();
+    if (menu) menu.style.removeProperty("display");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v118-attiva");
+      view.style.setProperty("display", "none", "important");
+    });
+
+    var p = pannello();
+    if (p) p.classList.remove("aperto");
+    setTimeout(portaInAlto, 0);
+    return true;
+  }
+
+  window.collabAppMostraSezione = apriPagina;
+  window.collabAppChiudiSezioni = apriMenu;
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-app-menu-btn") : null;
+    if (!btn) return;
+
+    var testo = (btn.textContent || "").toLowerCase();
+    var tipo = testo.indexOf("resoconto") !== -1 ? "mese" :
+      testo.indexOf("vacanze") !== -1 ? "vacanze" :
+      testo.indexOf("stampa") !== -1 ? "stampa" : "ore";
+
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(function () { apriPagina(tipo); }, 0);
+  }, true);
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-back-btn") : null;
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(apriMenu, 0);
+  }, true);
+
+  document.addEventListener("DOMContentLoaded", function () { setTimeout(apriMenu, 350); });
+})();
+</script>
+
+
+<!-- WORKHUB V119: raccolta collaboratore pulita: un solo pulsante e calendario grande a schermo. Solo interfaccia, non modifica calcoli/ore/Supabase. -->
+<style id="workhub-v119-raccolta-pulita-style">
+  .workhub-v119-nascondi-raccolta {
+    display: none !important;
+  }
+
+  /* La raccolta deve essere leggibile come il file scaricato: larga, pulita e con scroll orizzontale. */
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande {
+    width: calc(100vw - 32px) !important;
+    max-width: none !important;
+    margin-left: 50% !important;
+    transform: translateX(-50%) !important;
+    border: 2px solid #dbeafe !important;
+    border-radius: 22px !important;
+    background: #ffffff !important;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.10) !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande > summary {
+    background: #0b74ee !important;
+    color: #ffffff !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 16px 20px !important;
+    font-size: 20px !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande .resoconto-content {
+    padding: 18px !important;
+  }
+
+  /* Nella raccolta restano solo collaboratore e date: i bottoni doppi dentro il pannello vengono nascosti. */
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41,
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix {
+    display: grid !important;
+    grid-template-columns: minmax(260px, 1.2fr) minmax(180px, .8fr) minmax(180px, .8fr) !important;
+    gap: 12px !important;
+    align-items: end !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41 button,
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix button {
+    display: none !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel select,
+  #workhubRaccoltaCollaboratorePanel input[type="date"] {
+    min-height: 54px !important;
+    border-radius: 14px !important;
+    font-size: 18px !important;
+  }
+
+  #workhubRaccoltaPreview {
+    width: 100% !important;
+  }
+
+  #workhubRaccoltaPreview .calendar-scroll,
+  #workhubRaccoltaPreview .workhub-raccolta-table-wrap-v41,
+  #workhubRaccoltaPreview .scroll-x {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    border: 1px solid #dbeafe !important;
+  }
+
+  #workhubRaccoltaPreview table {
+    border-collapse: collapse !important;
+    width: max-content !important;
+    min-width: 1450px !important;
+    background: #ffffff !important;
+  }
+
+  #workhubRaccoltaPreview th,
+  #workhubRaccoltaPreview td {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    padding: 7px 8px !important;
+    vertical-align: middle !important;
+  }
+
+  #workhubRaccoltaPreview .cantiere-col,
+  #workhubRaccoltaPreview th:first-child,
+  #workhubRaccoltaPreview td:first-child {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 5 !important;
+    background: #ffffff !important;
+    box-shadow: 1px 0 0 #e5e7eb !important;
+  }
+
+  #workhubRaccoltaPreview h1,
+  #workhubRaccoltaPreview h2,
+  #workhubRaccoltaPreview h3 {
+    color: #111827 !important;
+  }
+
+  #workhubRaccoltaStato {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+  }
+
+  @media (max-width: 760px) {
+    #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande {
+      width: calc(100vw - 12px) !important;
+    }
+    #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41,
+    #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>
+<script id="workhub-v119-raccolta-pulita-script">
+(function () {
+  "use strict";
+  if (window.__workhubV119RaccoltaPulita) return;
+  window.__workhubV119RaccoltaPulita = true;
+
+  function testo(el) { return String((el && el.textContent) || "").replace(/\s+/g, " ").trim().toLowerCase(); }
+  function $(id) { return document.getElementById(id); }
+  function val(id) { var el = $(id); return el ? String(el.value || "").trim() : ""; }
+
+  function ePulsanteRaccolta(btn) {
+    return btn && /apri\s+raccolta\s+collaboratore/i.test(btn.textContent || "");
+  }
+
+  function pulsantiRaccoltaVisibili() {
+    return Array.from(document.querySelectorAll("button")).filter(ePulsanteRaccolta);
+  }
+
+  function trovaPulsantePrincipale(btns) {
+    return btns.find(function (b) { return b.closest && b.closest("#toolbarFoglioMensile"); }) || btns[0] || null;
+  }
+
+  function pulisciPulsantiDoppi() {
+    var btns = pulsantiRaccoltaVisibili();
+    if (!btns.length) return;
+    var principale = trovaPulsantePrincipale(btns);
+    btns.forEach(function (b) {
+      if (b === principale) {
+        b.classList.remove("workhub-v119-nascondi-raccolta");
+        b.textContent = "Apri raccolta collaboratore";
+        b.dataset.workhubV119RaccoltaPrincipale = "1";
+        b.title = "Apre la raccolta collaboratore leggibile a schermo";
+      } else {
+        b.classList.add("workhub-v119-nascondi-raccolta");
+        b.dataset.workhubV119RaccoltaDoppione = "1";
+      }
+    });
+  }
+
+  function sincronizzaFiltri() {
+    var collab = val("filtroCollaboratore") || val("ricercaVeloceCollaboratoreFoglio") || val("workhubRaccoltaCollaboratoreFiltro") || val("collaboratore") || val("collabAppNomeInput");
+    var dal = val("filtroDal") || val("workhubRaccoltaDal");
+    var al = val("filtroAl") || val("workhubRaccoltaAl");
+    var rf = $("workhubRaccoltaCollaboratoreFiltro");
+    var rd = $("workhubRaccoltaDal");
+    var ra = $("workhubRaccoltaAl");
+    if (rf && collab) {
+      rf.value = collab;
+      if (rf.value !== collab) {
+        var q = collab.toLowerCase();
+        Array.from(rf.options || []).some(function (opt) {
+          var v = String(opt.value || opt.textContent || "").toLowerCase();
+          if (v === q || v.indexOf(q) !== -1 || q.indexOf(v) !== -1) { rf.value = opt.value; return true; }
+          return false;
+        });
+      }
+    }
+    if (rd && dal) rd.value = dal;
+    if (ra && al) ra.value = al;
+  }
+
+  function preparaPannello() {
+    if (typeof window.workhubApriRaccoltaCollaboratoreV103 === "function") {
+      try { window.workhubApriRaccoltaCollaboratoreV103({ preventDefault: function () {}, stopPropagation: function () {} }); } catch (e) { console.warn("Raccolta V119 apertura:", e); }
+    }
+    var panel = $("workhubRaccoltaCollaboratorePanel");
+    if (panel) {
+      panel.open = true;
+      panel.classList.add("workhub-v119-raccolta-grande");
+    }
+    sincronizzaFiltri();
+    if (typeof window.workhubRaccoltaCollaboratoreRender === "function") {
+      try { window.workhubRaccoltaCollaboratoreRender(); } catch (e2) { console.warn("Raccolta V119 render:", e2); }
+    }
+    panel = $("workhubRaccoltaCollaboratorePanel");
+    if (panel) panel.classList.add("workhub-v119-raccolta-grande");
+    return panel;
+  }
+
+  function apriRaccoltaPulita(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    pulisciPulsantiDoppi();
+    var panel = preparaPannello();
+    setTimeout(function () {
+      pulisciPulsantiDoppi();
+      panel = preparaPannello() || panel;
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return false;
+  }
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest("button") : null;
+    if (!btn || !ePulsanteRaccolta(btn)) return;
+    if (btn.classList.contains("workhub-v119-nascondi-raccolta")) {
+      event.preventDefault();
+      event.stopPropagation();
+      return false;
+    }
+    return apriRaccoltaPulita(event);
+  }, true);
+
+  ["change", "input"].forEach(function (ev) {
+    document.addEventListener(ev, function (event) {
+      var id = event.target && event.target.id;
+      if (id === "workhubRaccoltaCollaboratoreFiltro" || id === "workhubRaccoltaDal" || id === "workhubRaccoltaAl") {
+        setTimeout(function () {
+          if (typeof window.workhubRaccoltaCollaboratoreRender === "function") window.workhubRaccoltaCollaboratoreRender();
+          var p = $("workhubRaccoltaCollaboratorePanel");
+          if (p) p.classList.add("workhub-v119-raccolta-grande");
+        }, 0);
+      }
+    }, true);
+  });
+
+  window.workhubApriRaccoltaCollaboratorePulitaV119 = apriRaccoltaPulita;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    pulisciPulsantiDoppi();
+    setTimeout(pulisciPulsantiDoppi, 600);
+    setTimeout(function () { var p = $("workhubRaccoltaCollaboratorePanel"); if (p) p.classList.add("workhub-v119-raccolta-grande"); }, 900);
+  });
+  window.addEventListener("load", function () {
+    setTimeout(pulisciPulsantiDoppi, 400);
+    setTimeout(pulisciPulsantiDoppi, 1400);
+  });
+  setInterval(pulisciPulsantiDoppi, 1600);
+})();
+</script>
+
+
+
+<style id="workhub-v120-nascondi-bottone-scarica-schede-solo-visivo">
+  /* V120: nasconde solo visivamente il bottone nelle schede collaboratore/operaio.
+     Non rimuove funzioni, onclick, calcoli, Supabase, ore, AVS o trasferte. */
+  .quick-download-btn {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+</style>
+
+
+
+<script id="workhub-fix-lavorazioni-supabase-v121">
+/* V121 - Caricamento lavorazioni da Supabase nei menu a tendina.
+   Correzione solo sincronizzazione/visuale menu: non modifica calcoli, ore, AVS, trasferte o limite 8.50. */
+(function () {
+  const AZIENDA_ID_FALLBACK = "21af7afa-cbcb-45b9-9a84-f9f9ad68b7fd";
+  let ultimoCaricamento = 0;
+
+  function aziendaId() {
+    try {
+      if (typeof SUPABASE_AZIENDA_ID === "string" && SUPABASE_AZIENDA_ID) return SUPABASE_AZIENDA_ID;
+    } catch (_) {}
+    return AZIENDA_ID_FALLBACK;
+  }
+
+  function testoPulitoSafe(v) {
+    try {
+      if (typeof testoPulito === "function") return testoPulito(v);
+    } catch (_) {}
+    return String(v ?? "").trim().replace(/\s+/g, " ");
+  }
+
+  function normalizzaSafe(lista) {
+    try {
+      if (typeof normalizzaListaVoci === "function") return normalizzaListaVoci(lista);
+    } catch (_) {}
+    const m = new Map();
+    (Array.isArray(lista) ? lista : []).forEach(function (v) {
+      const p = testoPulitoSafe(v);
+      if (!p) return;
+      const k = p.toLocaleLowerCase("it-CH");
+      if (!m.has(k)) m.set(k, p);
+    });
+    return Array.from(m.values()).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function aggiornaMenu() {
+    try { if (typeof salvaVociMenu === "function") salvaVociMenu(); } catch (_) {}
+    try { if (typeof aggiornaMenuTendina === "function") aggiornaMenuTendina(); } catch (_) {}
+    try { if (typeof aggiornaVociVisibili === "function") aggiornaVociVisibili(); } catch (_) {}
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof mostraSuggerimentiLavoro === "function") mostraSuggerimentiLavoro(); } catch (_) {}
+    try { if (typeof collabQuickMostraSuggerimentiLavoro === "function") collabQuickMostraSuggerimentiLavoro(); } catch (_) {}
+  }
+
+  async function caricaLavorazioniOnline(forza) {
+    const adesso = Date.now();
+    if (!forza && adesso - ultimoCaricamento < 15000) return;
+    ultimoCaricamento = adesso;
+
+    try {
+      if (typeof inizializzaSupabase !== "function") return;
+      const client = inizializzaSupabase();
+      if (!client || typeof client.from !== "function") return;
+
+      let sessione = null;
+      try {
+        if (typeof supabaseSessioneCorrente === "function") sessione = await supabaseSessioneCorrente();
+      } catch (_) {}
+      if (!sessione && typeof supabaseUtente !== "undefined" && !supabaseUtente) return;
+
+      let res = await client
+        .from("lavorazioni")
+        .select("id,nome,attivo")
+        .eq("azienda_id", aziendaId())
+        .eq("attivo", true)
+        .order("nome", { ascending: true });
+
+      if (res && res.error) {
+        console.warn("Caricamento lavorazioni con azienda_id non riuscito, riprovo senza filtro azienda:", res.error);
+        res = await client
+          .from("lavorazioni")
+          .select("id,nome,attivo")
+          .eq("attivo", true)
+          .order("nome", { ascending: true });
+      }
+
+      if (res && res.error) {
+        console.warn("Caricamento lavorazioni Supabase non riuscito:", res.error);
+        return;
+      }
+
+      const righe = Array.isArray(res && res.data) ? res.data : [];
+      if (!righe.length) return;
+
+      if (typeof vociMenu === "undefined" || !vociMenu) return;
+      if (!Array.isArray(vociMenu.lavori)) vociMenu.lavori = [];
+      if (!vociMenu._supabaseIds) vociMenu._supabaseIds = { collaboratori: {}, cantieri: {}, lavori: {} };
+      if (!vociMenu._supabaseIds.lavori) vociMenu._supabaseIds.lavori = {};
+
+      righe.forEach(function (r) {
+        const nome = testoPulitoSafe(r && r.nome);
+        if (!nome) return;
+        vociMenu.lavori.push(nome);
+        if (r.id) vociMenu._supabaseIds.lavori[nome] = r.id;
+      });
+
+      vociMenu.lavori = normalizzaSafe(vociMenu.lavori);
+      aggiornaMenu();
+    } catch (err) {
+      console.warn("Caricamento lavorazioni Supabase non riuscito:", err);
+    }
+  }
+
+  window.workhubRicaricaLavorazioniSupabase = function () {
+    return caricaLavorazioniOnline(true);
+  };
+
+  function installa() {
+    if (window.__workhubFixLavorazioniSupabaseV121) return;
+    window.__workhubFixLavorazioniSupabaseV121 = true;
+
+    const originaleCarica = window.supabaseCaricaDati;
+    if (typeof originaleCarica === "function" && !originaleCarica.__workhubFixLavorazioniV121) {
+      window.supabaseCaricaDati = async function () {
+        const risultato = await originaleCarica.apply(this, arguments);
+        await caricaLavorazioniOnline(true);
+        return risultato;
+      };
+      window.supabaseCaricaDati.__workhubFixLavorazioniV121 = true;
+    }
+
+    ["aggiungiLavoroConId", "aggiungiVoceManuale", "supabaseAssicuraVoce"].forEach(function (nomeFunzione) {
+      const originale = window[nomeFunzione];
+      if (typeof originale !== "function" || originale.__workhubFixLavorazioniV121) return;
+      window[nomeFunzione] = async function () {
+        const risultato = await originale.apply(this, arguments);
+        setTimeout(function () { caricaLavorazioniOnline(true); }, 500);
+        return risultato;
+      };
+      window[nomeFunzione].__workhubFixLavorazioniV121 = true;
+    });
+
+    document.addEventListener("focusin", function (ev) {
+      const id = ev && ev.target && ev.target.id;
+      if (id === "lavoro" || id === "collabQuickLavoro" || id === "selectLavoroInserimento" || id === "selectLavoroGestione") {
+        caricaLavorazioniOnline(false);
+      }
+    });
+
+    document.addEventListener("click", function (ev) {
+      const t = ev && ev.target;
+      if (!t) return;
+      const id = t.id || "";
+      const testo = String(t.textContent || "");
+      if (id === "toggleGestioneLavoriBtn" || id === "selectLavoroGestione" || testo.includes("lavoro svolto")) {
+        caricaLavorazioniOnline(false);
+      }
+    });
+
+    setTimeout(function () { caricaLavorazioniOnline(true); }, 1200);
+    setTimeout(function () { caricaLavorazioniOnline(true); }, 3500);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(installa, 300);
+    setTimeout(installa, 1200);
+  });
+  setTimeout(installa, 2000);
+})();
+</script>
+
 </body>
 </html>
 
@@ -10071,7 +12065,460 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
         '<p><strong>Periodo:</strong> ' + esc(dal) + ' - ' + esc(al) + '</p>' +
         '<div class="workhub-raccolta-download-v105">' + contenuto + '</div>' +
         '<script>window.addEventListener("load",function(){setTimeout(function(){try{window.print()}catch(e){}},400)})<\/script>' +
-        '</body></html>';
+        '
+
+  <style id="workhub-v112-schermate-collaboratore-subito">
+    /* V112 - Area collaboratore: quando si tocca un bottone del menu, si apre solo la pagina scelta. */
+    body.workhub-auth-collaboratore #collabHomeScreen.workhub-v112-pagina-aperta .collab-home-card {
+      display: none !important;
+    }
+    body.workhub-auth-collaboratore #collabHomeScreen.workhub-v112-pagina-aperta .collab-app-view {
+      display: none !important;
+      margin-top: 0 !important;
+    }
+    body.workhub-auth-collaboratore #collabHomeScreen.workhub-v112-pagina-aperta .collab-app-view.workhub-v112-attiva {
+      display: block !important;
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+    body.workhub-auth-collaboratore #collabHomeScreen.workhub-v112-menu .collab-home-card {
+      display: block !important;
+    }
+    body.workhub-auth-collaboratore #collabHomeScreen.workhub-v112-menu .collab-app-view {
+      display: none !important;
+    }
+  </style>
+
+  <script id="workhub-v112-schermate-collaboratore-subito">
+    /*
+      V112 - Solo visualizzazione area collaboratore.
+      Non modifica salvataggi, Supabase, ore, AVS, trasferte, vacanze o calcoli.
+      Obiettivo: tocco su Inserire ore / Mese / Vacanze / Stampa = apre subito la pagina scelta,
+      senza dover scorrere sotto il menu per cercarla.
+    */
+    (function () {
+      const MAPPA = {
+        ore: "collabViewOre",
+        mese: "collabViewMese",
+        vacanze: "collabViewVacanze",
+        stampa: "collabViewStampa"
+      };
+
+      function home() {
+        return document.getElementById("collabHomeScreen");
+      }
+
+      function portaInAlto(elemento) {
+        try {
+          const pannello = document.getElementById("collabQuickPanel") || elemento;
+          if (pannello && typeof pannello.scrollIntoView === "function") {
+            pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+          }
+          setTimeout(function () {
+            if (pannello && typeof pannello.scrollIntoView === "function") {
+              pannello.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+            }
+          }, 80);
+        } catch (_) {}
+      }
+
+      function apriPagina(tipo) {
+        const box = home();
+        const id = MAPPA[tipo] || "";
+        const pagina = id ? document.getElementById(id) : null;
+        if (!box || !pagina) return false;
+
+        box.classList.remove("workhub-v112-menu", "workhub-menu-attivo");
+        box.classList.add("workhub-v112-pagina-aperta", "workhub-sezione-aperta");
+
+        box.querySelectorAll(".collab-app-view").forEach(function (view) {
+          view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva");
+          view.style.display = "none";
+        });
+
+        pagina.classList.add("attiva", "workhub-view-attiva", "workhub-v112-attiva");
+        pagina.style.display = "block";
+        portaInAlto(pagina);
+        return true;
+      }
+
+      function apriMenu() {
+        const box = home();
+        if (!box) return false;
+        box.classList.remove("workhub-v112-pagina-aperta", "workhub-sezione-aperta");
+        box.classList.add("workhub-v112-menu", "workhub-menu-attivo");
+        box.querySelectorAll(".collab-app-view").forEach(function (view) {
+          view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva");
+          view.style.display = "none";
+        });
+        portaInAlto(box);
+        return true;
+      }
+
+      function installa() {
+        if (window.__workhubV112SchermateCollaboratore) return;
+        window.__workhubV112SchermateCollaboratore = true;
+
+        const precedenteMostra = window.collabAppMostraSezione;
+        window.collabAppMostraSezione = function (tipo) {
+          if (typeof precedenteMostra === "function") {
+            try { precedenteMostra(tipo); } catch (errore) { console.warn(errore); }
+          }
+          apriPagina(tipo);
+        };
+
+        const precedenteChiudi = window.collabAppChiudiSezioni;
+        window.collabAppChiudiSezioni = function () {
+          if (typeof precedenteChiudi === "function") {
+            try { precedenteChiudi(); } catch (errore) { console.warn(errore); }
+          }
+          apriMenu();
+        };
+
+        document.addEventListener("click", function (event) {
+          const bottone = event.target && event.target.closest ? event.target.closest(".collab-app-menu-btn") : null;
+          if (!bottone) return;
+          setTimeout(function () {
+            const attiva = document.querySelector("#collabHomeScreen .collab-app-view.attiva, #collabHomeScreen .collab-app-view.workhub-v112-attiva");
+            if (attiva) portaInAlto(attiva);
+          }, 120);
+        }, true);
+
+        setTimeout(apriMenu, 250);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", installa);
+      } else {
+        installa();
+      }
+      window.addEventListener("load", function () { setTimeout(installa, 100); });
+    })();
+  </script>
+
+
+<!-- WORKHUB V118: patch SOLO VISIVO per i 4 bottoni collaboratore.
+     Non cambia salvataggi, Supabase, calcoli, limite 8.50, AVS, trasferte o vacanze.
+     Quando si tocca un bottone, nasconde il menu e mostra subito solo la pagina scelta. -->
+<style id="workhub-v118-bottoni-apri-solo-pagina">
+  #collabHomeScreen.workhub-v118-aperta > .collab-home-card,
+  #collabHomeScreen.workhub-v118-aperta .collab-home-card {
+    display: none !important;
+  }
+  #collabHomeScreen.workhub-v118-aperta .collab-app-view {
+    display: none !important;
+    margin-top: 0 !important;
+  }
+  #collabHomeScreen.workhub-v118-aperta .collab-app-view.workhub-v118-attiva {
+    display: block !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+  #collabHomeScreen.workhub-v118-menu > .collab-home-card,
+  #collabHomeScreen.workhub-v118-menu .collab-home-card {
+    display: block !important;
+  }
+  #collabHomeScreen.workhub-v118-menu .collab-app-view {
+    display: none !important;
+  }
+</style>
+<script id="workhub-v118-bottoni-apri-solo-pagina">
+(function () {
+  if (window.__workhubV118BottoniApriSoloPagina) return;
+  window.__workhubV118BottoniApriSoloPagina = true;
+
+  var MAPPA = {
+    ore: "collabViewOre",
+    mese: "collabViewMese",
+    vacanze: "collabViewVacanze",
+    stampa: "collabViewStampa"
+  };
+
+  function home() { return document.getElementById("collabHomeScreen"); }
+  function pannello() { return document.getElementById("collabQuickPanel"); }
+  function cardMenu() {
+    var h = home();
+    return h ? h.querySelector(".collab-home-card") : null;
+  }
+
+  function portaInAlto() {
+    var p = pannello() || home();
+    try {
+      if (p && typeof p.scrollIntoView === "function") {
+        p.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+      }
+    } catch (_) {}
+  }
+
+  function apriPagina(tipo) {
+    var h = home();
+    var id = MAPPA[tipo];
+    var pagina = id ? document.getElementById(id) : null;
+    if (!h || !pagina) return false;
+
+    h.classList.remove("workhub-v118-menu", "workhub-menu-attivo", "workhub-v112-menu");
+    h.classList.add("workhub-v118-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+
+    var menu = cardMenu();
+    if (menu) menu.style.setProperty("display", "none", "important");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      var attiva = k === tipo;
+      view.classList.toggle("attiva", attiva);
+      view.classList.toggle("workhub-view-attiva", attiva);
+      view.classList.toggle("workhub-v112-attiva", attiva);
+      view.classList.toggle("workhub-v118-attiva", attiva);
+      view.style.setProperty("display", attiva ? "block" : "none", "important");
+      if (attiva) {
+        view.style.setProperty("margin-top", "0", "important");
+        view.style.setProperty("padding-top", "0", "important");
+      }
+    });
+
+    var p = pannello();
+    if (p) p.classList.toggle("aperto", tipo === "ore");
+
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
+    try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
+    try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
+    if (tipo === "ore") setTimeout(function () { try { if (typeof collabQuickMostraSuggerimentiCantiere === "function") collabQuickMostraSuggerimentiCantiere(); } catch (_) {} }, 80);
+
+    setTimeout(portaInAlto, 0);
+    setTimeout(portaInAlto, 80);
+    return true;
+  }
+
+  function apriMenu() {
+    var h = home();
+    if (!h) return false;
+
+    h.classList.remove("workhub-v118-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+    h.classList.add("workhub-v118-menu", "workhub-menu-attivo", "workhub-v112-menu");
+
+    var menu = cardMenu();
+    if (menu) menu.style.removeProperty("display");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v118-attiva");
+      view.style.setProperty("display", "none", "important");
+    });
+
+    var p = pannello();
+    if (p) p.classList.remove("aperto");
+    setTimeout(portaInAlto, 0);
+    return true;
+  }
+
+  window.collabAppMostraSezione = apriPagina;
+  window.collabAppChiudiSezioni = apriMenu;
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-app-menu-btn") : null;
+    if (!btn) return;
+
+    var testo = (btn.textContent || "").toLowerCase();
+    var tipo = testo.indexOf("resoconto") !== -1 ? "mese" :
+      testo.indexOf("vacanze") !== -1 ? "vacanze" :
+      testo.indexOf("stampa") !== -1 ? "stampa" : "ore";
+
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(function () { apriPagina(tipo); }, 0);
+  }, true);
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-back-btn") : null;
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(apriMenu, 0);
+  }, true);
+
+  document.addEventListener("DOMContentLoaded", function () { setTimeout(apriMenu, 350); });
+})();
+</script>
+
+
+
+<style id="workhub-v120-nascondi-bottone-scarica-schede-solo-visivo">
+  /* V120: nasconde solo visivamente il bottone nelle schede collaboratore/operaio.
+     Non rimuove funzioni, onclick, calcoli, Supabase, ore, AVS o trasferte. */
+  .quick-download-btn {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+</style>
+
+
+
+<script id="workhub-fix-lavorazioni-supabase-v121">
+/* V121 - Caricamento lavorazioni da Supabase nei menu a tendina.
+   Correzione solo sincronizzazione/visuale menu: non modifica calcoli, ore, AVS, trasferte o limite 8.50. */
+(function () {
+  const AZIENDA_ID_FALLBACK = "21af7afa-cbcb-45b9-9a84-f9f9ad68b7fd";
+  let ultimoCaricamento = 0;
+
+  function aziendaId() {
+    try {
+      if (typeof SUPABASE_AZIENDA_ID === "string" && SUPABASE_AZIENDA_ID) return SUPABASE_AZIENDA_ID;
+    } catch (_) {}
+    return AZIENDA_ID_FALLBACK;
+  }
+
+  function testoPulitoSafe(v) {
+    try {
+      if (typeof testoPulito === "function") return testoPulito(v);
+    } catch (_) {}
+    return String(v ?? "").trim().replace(/\s+/g, " ");
+  }
+
+  function normalizzaSafe(lista) {
+    try {
+      if (typeof normalizzaListaVoci === "function") return normalizzaListaVoci(lista);
+    } catch (_) {}
+    const m = new Map();
+    (Array.isArray(lista) ? lista : []).forEach(function (v) {
+      const p = testoPulitoSafe(v);
+      if (!p) return;
+      const k = p.toLocaleLowerCase("it-CH");
+      if (!m.has(k)) m.set(k, p);
+    });
+    return Array.from(m.values()).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function aggiornaMenu() {
+    try { if (typeof salvaVociMenu === "function") salvaVociMenu(); } catch (_) {}
+    try { if (typeof aggiornaMenuTendina === "function") aggiornaMenuTendina(); } catch (_) {}
+    try { if (typeof aggiornaVociVisibili === "function") aggiornaVociVisibili(); } catch (_) {}
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof mostraSuggerimentiLavoro === "function") mostraSuggerimentiLavoro(); } catch (_) {}
+    try { if (typeof collabQuickMostraSuggerimentiLavoro === "function") collabQuickMostraSuggerimentiLavoro(); } catch (_) {}
+  }
+
+  async function caricaLavorazioniOnline(forza) {
+    const adesso = Date.now();
+    if (!forza && adesso - ultimoCaricamento < 15000) return;
+    ultimoCaricamento = adesso;
+
+    try {
+      if (typeof inizializzaSupabase !== "function") return;
+      const client = inizializzaSupabase();
+      if (!client || typeof client.from !== "function") return;
+
+      let sessione = null;
+      try {
+        if (typeof supabaseSessioneCorrente === "function") sessione = await supabaseSessioneCorrente();
+      } catch (_) {}
+      if (!sessione && typeof supabaseUtente !== "undefined" && !supabaseUtente) return;
+
+      let res = await client
+        .from("lavorazioni")
+        .select("id,nome,attivo")
+        .eq("azienda_id", aziendaId())
+        .eq("attivo", true)
+        .order("nome", { ascending: true });
+
+      if (res && res.error) {
+        console.warn("Caricamento lavorazioni con azienda_id non riuscito, riprovo senza filtro azienda:", res.error);
+        res = await client
+          .from("lavorazioni")
+          .select("id,nome,attivo")
+          .eq("attivo", true)
+          .order("nome", { ascending: true });
+      }
+
+      if (res && res.error) {
+        console.warn("Caricamento lavorazioni Supabase non riuscito:", res.error);
+        return;
+      }
+
+      const righe = Array.isArray(res && res.data) ? res.data : [];
+      if (!righe.length) return;
+
+      if (typeof vociMenu === "undefined" || !vociMenu) return;
+      if (!Array.isArray(vociMenu.lavori)) vociMenu.lavori = [];
+      if (!vociMenu._supabaseIds) vociMenu._supabaseIds = { collaboratori: {}, cantieri: {}, lavori: {} };
+      if (!vociMenu._supabaseIds.lavori) vociMenu._supabaseIds.lavori = {};
+
+      righe.forEach(function (r) {
+        const nome = testoPulitoSafe(r && r.nome);
+        if (!nome) return;
+        vociMenu.lavori.push(nome);
+        if (r.id) vociMenu._supabaseIds.lavori[nome] = r.id;
+      });
+
+      vociMenu.lavori = normalizzaSafe(vociMenu.lavori);
+      aggiornaMenu();
+    } catch (err) {
+      console.warn("Caricamento lavorazioni Supabase non riuscito:", err);
+    }
+  }
+
+  window.workhubRicaricaLavorazioniSupabase = function () {
+    return caricaLavorazioniOnline(true);
+  };
+
+  function installa() {
+    if (window.__workhubFixLavorazioniSupabaseV121) return;
+    window.__workhubFixLavorazioniSupabaseV121 = true;
+
+    const originaleCarica = window.supabaseCaricaDati;
+    if (typeof originaleCarica === "function" && !originaleCarica.__workhubFixLavorazioniV121) {
+      window.supabaseCaricaDati = async function () {
+        const risultato = await originaleCarica.apply(this, arguments);
+        await caricaLavorazioniOnline(true);
+        return risultato;
+      };
+      window.supabaseCaricaDati.__workhubFixLavorazioniV121 = true;
+    }
+
+    ["aggiungiLavoroConId", "aggiungiVoceManuale", "supabaseAssicuraVoce"].forEach(function (nomeFunzione) {
+      const originale = window[nomeFunzione];
+      if (typeof originale !== "function" || originale.__workhubFixLavorazioniV121) return;
+      window[nomeFunzione] = async function () {
+        const risultato = await originale.apply(this, arguments);
+        setTimeout(function () { caricaLavorazioniOnline(true); }, 500);
+        return risultato;
+      };
+      window[nomeFunzione].__workhubFixLavorazioniV121 = true;
+    });
+
+    document.addEventListener("focusin", function (ev) {
+      const id = ev && ev.target && ev.target.id;
+      if (id === "lavoro" || id === "collabQuickLavoro" || id === "selectLavoroInserimento" || id === "selectLavoroGestione") {
+        caricaLavorazioniOnline(false);
+      }
+    });
+
+    document.addEventListener("click", function (ev) {
+      const t = ev && ev.target;
+      if (!t) return;
+      const id = t.id || "";
+      const testo = String(t.textContent || "");
+      if (id === "toggleGestioneLavoriBtn" || id === "selectLavoroGestione" || testo.includes("lavoro svolto")) {
+        caricaLavorazioniOnline(false);
+      }
+    });
+
+    setTimeout(function () { caricaLavorazioniOnline(true); }, 1200);
+    setTimeout(function () { caricaLavorazioniOnline(true); }, 3500);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(installa, 300);
+    setTimeout(installa, 1200);
+  });
+  setTimeout(installa, 2000);
+})();
+</script>
+
+</body></html>';
 
       scaricaHtml(doc, 'raccolta_collaboratore_' + nomeFilePulito(collab) + '_' + nomeFilePulito(dal) + '_' + nomeFilePulito(al) + '.html');
       return true;
@@ -10105,3 +12552,1390 @@ function ricercaVeloceCollaboratoreFoglio(soloApri = false) {
   setInterval(aggiornaBottoni, 1200);
 })();
 </script>
+
+<!-- WORKHUB FIX V113 - Supabase: cantieri + lavorazioni sempre insieme -->
+<script id="workhub-fix-supabase-cantieri-lavorazioni-v113">
+(function () {
+  "use strict";
+
+  var inCorso = false;
+
+  function $(id) { return document.getElementById(id); }
+  function pulito(v) { return String(v == null ? "" : v).trim().replace(/\s+/g, " "); }
+  function norm(v) { return pulito(v).toLocaleLowerCase("it-CH"); }
+  function numero(v) { var n = Number(v || 0); return Number.isFinite(n) ? n : 0; }
+  function uuid(v) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || "").trim()); }
+
+  function stato(testo, errore) {
+    var box = $("workhubDbSyncStatoV73") || $("workhubDbSyncStatoV72") || $("workhubDbSyncStatoV70");
+    if (box) {
+      box.textContent = testo;
+      box.style.color = errore ? "#b91c1c" : "#166534";
+    }
+    try { if (typeof supabaseStato === "function") supabaseStato(testo, !!errore); } catch (_) {}
+  }
+
+  function clientSupabase() {
+    try { if (typeof inizializzaSupabase === "function") return inizializzaSupabase(); } catch (_) {}
+    try { if (window.supabaseClient && typeof window.supabaseClient.from === "function") return window.supabaseClient; } catch (_) {}
+    try {
+      if (window.supabase && typeof window.supabase.createClient === "function" && typeof SUPABASE_URL !== "undefined" && typeof SUPABASE_PUBLISHABLE_KEY !== "undefined") {
+        if (!window.__workhubSupabaseClientFixV113) window.__workhubSupabaseClientFixV113 = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+        return window.__workhubSupabaseClientFixV113;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async function sessioneOk(client) {
+    if (!client || !client.auth || typeof client.auth.getSession !== "function") return true;
+    try {
+      var res = await client.auth.getSession();
+      return !!(res && res.data && res.data.session);
+    } catch (_) { return true; }
+  }
+
+  function aziendaIdLocale() {
+    try { if (typeof SUPABASE_AZIENDA_ID !== "undefined" && uuid(SUPABASE_AZIENDA_ID)) return String(SUPABASE_AZIENDA_ID); } catch (_) {}
+    try {
+      var keys = ["workhub_azienda_id", "azienda_id", "aziendaId", "tecnoplafon_azienda_id"];
+      for (var i = 0; i < keys.length; i++) {
+        var v = localStorage.getItem(keys[i]);
+        if (uuid(v)) return String(v).trim();
+      }
+    } catch (_) {}
+    try {
+      if (window.supabaseProfilo && uuid(window.supabaseProfilo.azienda_id)) return String(window.supabaseProfilo.azienda_id).trim();
+      if (window.supabaseUtente && window.supabaseUtente.user_metadata && uuid(window.supabaseUtente.user_metadata.azienda_id)) return String(window.supabaseUtente.user_metadata.azienda_id).trim();
+    } catch (_) {}
+    return "";
+  }
+
+  function assicuraMenu() {
+    if (typeof window.vociMenu !== "object" || !window.vociMenu) {
+      if (typeof vociMenu === "object" && vociMenu) window.vociMenu = vociMenu;
+    }
+    var m = window.vociMenu || (typeof vociMenu === "object" ? vociMenu : null);
+    if (!m) throw new Error("menu WorkHub non pronto: ricarica la pagina");
+    if (!Array.isArray(m.cantieri)) m.cantieri = [];
+    if (!Array.isArray(m.lavori)) m.lavori = [];
+    if (!m.cantieriKm || typeof m.cantieriKm !== "object") m.cantieriKm = {};
+    if (!m.cantiereZone || typeof m.cantiereZone !== "object") m.cantiereZone = {};
+    if (!m.cantiereStato || typeof m.cantiereStato !== "object") m.cantiereStato = {};
+    if (!m.lavoriMeta || typeof m.lavoriMeta !== "object" || Array.isArray(m.lavoriMeta)) m.lavoriMeta = {};
+    if (!m._supabaseIds || typeof m._supabaseIds !== "object") m._supabaseIds = { collaboratori: {}, cantieri: {}, lavori: {} };
+    if (!m._supabaseIds.collaboratori) m._supabaseIds.collaboratori = {};
+    if (!m._supabaseIds.cantieri) m._supabaseIds.cantieri = {};
+    if (!m._supabaseIds.lavori) m._supabaseIds.lavori = {};
+    return m;
+  }
+
+  async function leggiTabella(tabella) {
+    var client = clientSupabase();
+    if (!client || typeof client.from !== "function") throw new Error("Supabase non collegato");
+    if (!(await sessioneOk(client))) throw new Error("manca la sessione: fai Accedi e riprova");
+    var az = aziendaIdLocale();
+    var select = tabella === "cantieri" ? "id, azienda_id, nome, km, zona, attivo" : "id, azienda_id, nome, attivo";
+    var q = client.from(tabella).select(select);
+    if (az) q = q.eq("azienda_id", az);
+    var res = await q;
+    if ((!res || res.error || !res.data || !res.data.length) && az) {
+      /* Fallback importante: evita che una costante azienda_id vecchia nasconda Cartongesso. */
+      res = await client.from(tabella).select(select);
+    }
+    if (res && res.error) throw res.error;
+    return (res && res.data) || [];
+  }
+
+  function statoCantiere(r) {
+    if (r && (r.attivo === false || r.attivo === "false" || r.attivo === "FALSE" || r.attivo === 0 || r.attivo === "0")) return "terminato";
+    return "attivo";
+  }
+
+  function applicaCantieri(rows) {
+    var m = assicuraMenu();
+    var map = new Map();
+    (Array.isArray(rows) ? rows : []).forEach(function (r) {
+      var nome = pulito(r.nome || r.cantiere || r.descrizione || r.name);
+      if (!nome) return;
+      map.set(norm(nome), {
+        id: r.id || "",
+        nome: nome,
+        km: numero(r.km),
+        zona: pulito(r.zona || nome) || nome,
+        stato: statoCantiere(r)
+      });
+    });
+    var tutti = Array.from(map.values()).sort(function (a, b) { return a.nome.localeCompare(b.nome, "it"); });
+    m.cantieri = tutti.map(function (r) { return r.nome; });
+    m.cantieriKm = {};
+    m.cantiereZone = {};
+    m.cantiereStato = {};
+    m._supabaseIds.cantieri = {};
+    m._supabaseCantieriAutoritativi = true;
+    m._supabaseCantieriSoloDatabaseV75 = true;
+    m._supabaseCantieriAggiornatiIl = new Date().toISOString();
+    m._supabaseCantieriAttivi = [];
+    m._supabaseCantieriTerminati = [];
+    tutti.forEach(function (r) {
+      m.cantieriKm[r.nome] = r.km;
+      m.cantiereZone[r.nome] = r.zona;
+      m.cantiereStato[r.nome] = r.stato;
+      if (r.id) m._supabaseIds.cantieri[r.nome] = r.id;
+      if (r.stato === "terminato") m._supabaseCantieriTerminati.push(r.nome);
+      else m._supabaseCantieriAttivi.push(r.nome);
+    });
+    return { totale: tutti.length, attivi: m._supabaseCantieriAttivi.length, terminati: m._supabaseCantieriTerminati.length };
+  }
+
+  function applicaLavorazioni(rows) {
+    var m = assicuraMenu();
+    var map = new Map();
+    (Array.isArray(rows) ? rows : []).forEach(function (r) {
+      if (r && (r.attivo === false || r.attivo === "false" || r.attivo === "FALSE" || r.attivo === 0 || r.attivo === "0")) return;
+      var nome = pulito(r.nome || r.voce || r.lavorazione || r.descrizione || r.principale);
+      if (!nome) return;
+      map.set(norm(nome), { id: r.id || "", nome: nome });
+    });
+    var lavori = Array.from(map.values()).sort(function (a, b) { return a.nome.localeCompare(b.nome, "it"); });
+    m.lavori = lavori.map(function (r) { return r.nome; });
+    m._supabaseIds.lavori = {};
+    lavori.forEach(function (r) {
+      if (r.id) m._supabaseIds.lavori[r.nome] = r.id;
+      if (!m.lavoriMeta[r.nome]) m.lavoriMeta[r.nome] = { id: "", reparto: "" };
+    });
+    m._supabaseLavorazioniAutoritative = true;
+    m._supabaseLavorazioniAggiornateIl = new Date().toISOString();
+    return lavori.length;
+  }
+
+  function aggiornaSchermo() {
+    try { if (typeof salvaVociMenu === "function") salvaVociMenu(); } catch (_) {}
+    try { if (typeof aggiornaMenuTendina === "function") aggiornaMenuTendina(); } catch (_) {}
+    try { if (typeof aggiornaVociVisibili === "function") aggiornaVociVisibili(); } catch (_) {}
+    try { if (typeof renderizza === "function") renderizza(); } catch (_) {}
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+  }
+
+  async function aggiornaCantieriELavorazioni() {
+    if (inCorso) return;
+    inCorso = true;
+    try {
+      stato("Leggo cantieri e lavorazioni da Supabase...", false);
+      var risultati = await Promise.all([leggiTabella("cantieri"), leggiTabella("lavorazioni")]);
+      var c = applicaCantieri(risultati[0]);
+      var l = applicaLavorazioni(risultati[1]);
+      aggiornaSchermo();
+      stato("Aggiornati da Supabase: " + c.totale + " cantieri (" + c.attivi + " attivi, " + c.terminati + " terminati) e " + l + " lavorazioni.", false);
+      return { cantieri: c, lavorazioni: l };
+    } catch (e) {
+      stato("Aggiornamento non riuscito: " + (e && e.message ? e.message : e), true);
+      throw e;
+    } finally {
+      inCorso = false;
+    }
+  }
+
+  function installaBottoni() {
+    var box = $("workhubDbSyncBoxV73") || $("workhubDbSyncBoxV72") || $("workhubDbSyncBoxV70");
+    if (box) {
+      var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+        '<button type="button" class="secondary small" onclick="workhubAggiornaDaSupabase()">Aggiorna cantieri + lavorazioni da Supabase</button>' +
+        '</div><div id="workhubDbSyncStatoV73" style="margin-top:8px;font-size:14px;line-height:1.35;">Questo bottone aggiorna insieme cantieri e lavorazioni, senza svuotare le voci.</div>';
+      if (box.innerHTML !== html) box.innerHTML = html;
+    }
+  }
+
+  function installa() {
+    window.workhubAggiornaDaSupabase = aggiornaCantieriELavorazioni;
+    window.workhubAggiornaTuttoDaSupabase = aggiornaCantieriELavorazioni;
+    window.workhubSincronizzaCantieriLavorazioniDb = aggiornaCantieriELavorazioni;
+    window.workhubAggiornaLavorazioniDaSupabaseV113 = async function () {
+      var rows = await leggiTabella("lavorazioni");
+      var l = applicaLavorazioni(rows);
+      aggiornaSchermo();
+      stato("Aggiornate da Supabase: " + l + " lavorazioni.", false);
+      return l;
+    };
+    installaBottoni();
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    installa();
+    setTimeout(installa, 700);
+    setTimeout(installa, 1800);
+    setTimeout(installa, 3500);
+  });
+  window.addEventListener("load", function () { installa(); setTimeout(installa, 1200); });
+  setInterval(installaBottoni, 2500);
+})();
+</script>
+
+<script id="workhub-supabase-salva-lavorazioni-v114">
+/* V114 - salva anche le lavorazioni create nel Hub dentro Supabase.
+   Non cambia calcoli ore, AVS, trasferte o login. */
+(function () {
+  if (window.__workhubSalvaLavorazioniSupabaseV114) return;
+  window.__workhubSalvaLavorazioniSupabaseV114 = true;
+
+  function $(id) { return document.getElementById(id); }
+  function pulito(v) { return String(v || '').trim().replace(/\s+/g, ' '); }
+  function norm(v) { return pulito(v).toLocaleLowerCase('it-CH'); }
+  function numero(v) { var n = Number(v || 0); return Number.isFinite(n) ? n : 0; }
+
+  function stato(msg, errore) {
+    var box = $('workhubDbSyncStatoV73') || $('supabaseStato');
+    if (box) {
+      box.textContent = msg;
+      box.style.color = errore ? '#b91c1c' : '#166534';
+      box.style.fontWeight = '800';
+    }
+    if (errore) console.warn(msg);
+    else console.log(msg);
+  }
+
+  function clientSupabase() {
+    try {
+      if (typeof inizializzaSupabase === 'function') return inizializzaSupabase();
+    } catch (_) {}
+    try {
+      if (window.supabaseClient) return window.supabaseClient;
+    } catch (_) {}
+    return null;
+  }
+
+  async function sessionePresente(client) {
+    try {
+      if (!client || !client.auth || typeof client.auth.getSession !== 'function') return false;
+      var res = await client.auth.getSession();
+      return !!(res && res.data && res.data.session);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function aziendaId(client) {
+    try {
+      var nomi = ['workhub_azienda_id', 'tecnoplafon_azienda_id', 'azienda_id', 'aziendaId'];
+      for (var i = 0; i < nomi.length; i++) {
+        var v = localStorage.getItem(nomi[i]) || sessionStorage.getItem(nomi[i]);
+        if (v && /^[0-9a-f-]{36}$/i.test(v)) return v;
+      }
+    } catch (_) {}
+
+    try {
+      if (typeof SUPABASE_AZIENDA_ID !== 'undefined' && SUPABASE_AZIENDA_ID) return SUPABASE_AZIENDA_ID;
+    } catch (_) {}
+
+    try {
+      var byName = await client.from('aziende').select('id,nome').ilike('nome', '%Tecnoplafon%').limit(1);
+      if (!byName.error && byName.data && byName.data[0] && byName.data[0].id) return byName.data[0].id;
+    } catch (_) {}
+
+    try {
+      var first = await client.from('aziende').select('id,nome').limit(1);
+      if (!first.error && first.data && first.data[0] && first.data[0].id) return first.data[0].id;
+    } catch (_) {}
+
+    return '';
+  }
+
+  async function salvaLavorazioneSuSupabase(nome) {
+    nome = pulito(nome);
+    if (!nome) return { ok: false, messaggio: 'Nome lavorazione vuoto.' };
+
+    var client = clientSupabase();
+    if (!client || typeof client.from !== 'function') {
+      return { ok: false, messaggio: 'Supabase non pronto. Fai login e riprova.' };
+    }
+    if (!(await sessionePresente(client))) {
+      return { ok: false, messaggio: 'Non sei collegato a Supabase. Fai login e riprova.' };
+    }
+
+    var az = await aziendaId(client);
+    if (!az) return { ok: false, messaggio: 'azienda_id non trovato. Controlla tabella aziende/profilo.' };
+
+    var cerca = client.from('lavorazioni').select('id,nome,attivo').eq('azienda_id', az).eq('nome', nome).limit(1);
+    var trovato = await cerca;
+    if (trovato && trovato.error) return { ok: false, messaggio: trovato.error.message };
+
+    var res;
+    if (trovato.data && trovato.data[0] && trovato.data[0].id) {
+      res = await client.from('lavorazioni').update({ attivo: true }).eq('id', trovato.data[0].id).select('id').single();
+    } else {
+      res = await client.from('lavorazioni').insert([{ azienda_id: az, nome: nome, attivo: true }]).select('id').single();
+    }
+
+    if (res && res.error) return { ok: false, messaggio: res.error.message };
+
+    try {
+      if (window.vociMenu) {
+        if (!vociMenu._supabaseIds) vociMenu._supabaseIds = { collaboratori: {}, cantieri: {}, lavori: {} };
+        if (!vociMenu._supabaseIds.lavori) vociMenu._supabaseIds.lavori = {};
+        if (res.data && res.data.id) vociMenu._supabaseIds.lavori[nome] = res.data.id;
+        if (!Array.isArray(vociMenu.lavori)) vociMenu.lavori = [];
+        if (!vociMenu.lavori.some(function (x) { return norm(x) === norm(nome); })) vociMenu.lavori.push(nome);
+        if (typeof salvaVociMenu === 'function') salvaVociMenu();
+      }
+    } catch (_) {}
+
+    return { ok: true, id: res.data && res.data.id ? res.data.id : '' };
+  }
+
+  async function sincronizzaLavorazioniLocaliSuSupabase() {
+    var lavori = [];
+    try {
+      if (window.vociMenu && Array.isArray(vociMenu.lavori)) lavori = lavori.concat(vociMenu.lavori);
+      if (window.ore && Array.isArray(ore)) lavori = lavori.concat(ore.map(function (r) { return r && r.lavoro; }));
+    } catch (_) {}
+
+    var viste = {};
+    lavori = lavori.map(pulito).filter(Boolean).filter(function (nome) {
+      var k = norm(nome);
+      if (viste[k]) return false;
+      viste[k] = true;
+      return true;
+    });
+
+    if (!lavori.length) {
+      stato('Nessuna lavorazione locale da inviare a Supabase.', true);
+      return { ok: false, totale: 0 };
+    }
+
+    stato('Invio ' + lavori.length + ' lavorazioni locali a Supabase...', false);
+    var ok = 0;
+    var errori = [];
+    for (var i = 0; i < lavori.length; i++) {
+      var r = await salvaLavorazioneSuSupabase(lavori[i]);
+      if (r.ok) ok += 1;
+      else errori.push(lavori[i] + ': ' + r.messaggio);
+    }
+
+    if (errori.length) {
+      stato('Salvate ' + ok + ' lavorazioni. Errori: ' + errori.slice(0, 3).join(' | '), true);
+      alert('Alcune lavorazioni NON sono entrate in Supabase.\n\n' + errori.slice(0, 8).join('\n') + '\n\nSe vedi RLS/policy, bisogna autorizzare INSERT/UPDATE sulla tabella lavorazioni.');
+    } else {
+      stato('Lavorazioni salvate su Supabase: ' + ok + '.', false);
+    }
+
+    try {
+      if (typeof workhubAggiornaTuttoDaSupabase === 'function') await workhubAggiornaTuttoDaSupabase();
+      else if (typeof supabaseCaricaDati === 'function') await supabaseCaricaDati();
+    } catch (_) {}
+
+    return { ok: !errori.length, totale: ok, errori: errori };
+  }
+
+  function installaSalvataggioLavoroConId() {
+    if (typeof window.aggiungiLavoroConId !== 'function' || window.aggiungiLavoroConId.__supabaseV114) return;
+    var originale = window.aggiungiLavoroConId;
+    window.aggiungiLavoroConId = async function () {
+      var nome = pulito($('nuovoLavoro') && $('nuovoLavoro').value);
+      var res = originale.apply(this, arguments);
+      if (!nome) return res;
+      var online = await salvaLavorazioneSuSupabase(nome);
+      if (online.ok) {
+        stato('Lavorazione salvata anche su Supabase: ' + nome, false);
+        try { if (typeof workhubAggiornaTuttoDaSupabase === 'function') await workhubAggiornaTuttoDaSupabase(); } catch (_) {}
+      } else {
+        stato('Lavorazione salvata nel Hub, ma NON in Supabase: ' + online.messaggio, true);
+        alert('La lavorazione è salvata nel Hub/browser, ma non è entrata in Supabase.\n\n' + online.messaggio + '\n\nSe l\'errore parla di RLS/policy, serve una policy INSERT/UPDATE sulla tabella lavorazioni.');
+      }
+      return res;
+    };
+    window.aggiungiLavoroConId.__supabaseV114 = true;
+  }
+
+  function installaSalvataggioVoceManuale() {
+    if (typeof window.aggiungiVoceManuale !== 'function' || window.aggiungiVoceManuale.__supabaseV114) return;
+    var originale = window.aggiungiVoceManuale;
+    window.aggiungiVoceManuale = async function (tipo, inputId) {
+      var input = $(inputId);
+      var nome = pulito(input && input.value);
+      var res = originale.apply(this, arguments);
+      if (tipo === 'lavori' && nome) {
+        var online = await salvaLavorazioneSuSupabase(nome);
+        if (online.ok) stato('Lavorazione salvata anche su Supabase: ' + nome, false);
+        else stato('Lavorazione non salvata su Supabase: ' + online.messaggio, true);
+      }
+      return res;
+    };
+    window.aggiungiVoceManuale.__supabaseV114 = true;
+  }
+
+  function installaBottoneSync() {
+    var panel = $('gestioneLavoriPanel');
+    if (!panel || $('workhubSyncLavorazioniSupabaseV114')) return;
+    var box = document.createElement('div');
+    box.id = 'workhubSyncLavorazioniSupabaseV114';
+    box.style.cssText = 'margin:12px 0;padding:12px;border:1px solid #bbf7d0;border-radius:14px;background:#f0fdf4;color:#14532d;font-weight:800;';
+    box.innerHTML = '<button type="button" class="secondary small" onclick="workhubSalvaLavorazioniLocaliSuSupabase()">Salva lavorazioni del Hub su Supabase</button>' +
+      '<div style="margin-top:8px;font-size:13px;line-height:1.35;">Usa questo se hai voci nel Hub che non compaiono nella tabella Supabase.</div>';
+    panel.insertBefore(box, panel.firstChild);
+  }
+
+  function installa() {
+    installaSalvataggioLavoroConId();
+    installaSalvataggioVoceManuale();
+    installaBottoneSync();
+    window.workhubSalvaLavorazioneSuSupabase = salvaLavorazioneSuSupabase;
+    window.workhubSalvaLavorazioniLocaliSuSupabase = sincronizzaLavorazioniLocaliSuSupabase;
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    installa();
+    setTimeout(installa, 700);
+    setTimeout(installa, 1800);
+    setTimeout(installa, 3500);
+  });
+  window.addEventListener('load', function () { installa(); setTimeout(installa, 1200); });
+  setInterval(installa, 2500);
+})();
+</script>
+
+
+<script id="workhub-v117-comando-bottoni-collaboratore">
+/* V117 - Ripristina il comando dei 4 bottoni collaboratore.
+   Inserire ore / Resoconto mensile / Chiedere vacanze / Stampa aprono subito solo la pagina scelta. */
+(function () {
+  if (window.__workhubV116ComandoBottoniCollaboratore) return;
+  window.__workhubV116ComandoBottoniCollaboratore = true;
+
+  var MAPPA = {
+    ore: "collabViewOre",
+    mese: "collabViewMese",
+    vacanze: "collabViewVacanze",
+    stampa: "collabViewStampa"
+  };
+
+  function home() { return document.getElementById("collabHomeScreen"); }
+  function pannello() { return document.getElementById("collabQuickPanel"); }
+
+  function portaSu(el) {
+    try {
+      var target = pannello() || el;
+      if (target && typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+      }
+    } catch (_) {}
+  }
+
+  function apriPagina(tipo) {
+    var box = home();
+    var id = MAPPA[tipo] || "";
+    var pagina = id ? document.getElementById(id) : null;
+    if (!box || !pagina) return false;
+
+    box.classList.remove("workhub-menu-attivo", "workhub-v112-menu");
+    box.classList.add("workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      var attiva = k === tipo;
+      view.classList.toggle("attiva", attiva);
+      view.classList.toggle("workhub-view-attiva", attiva);
+      view.classList.toggle("workhub-v112-attiva", attiva);
+      view.style.display = attiva ? "block" : "none";
+    });
+
+    var p = pannello();
+    if (p) p.classList.toggle("aperto", tipo === "ore");
+
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
+    try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
+    try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
+    if (tipo === "ore") setTimeout(function () { try { collabQuickMostraSuggerimentiCantiere(); } catch (_) {} }, 80);
+
+    portaSu(pagina);
+    return true;
+  }
+
+  function apriMenu() {
+    var box = home();
+    if (!box) return false;
+    box.classList.remove("workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+    box.classList.add("workhub-menu-attivo", "workhub-v112-menu");
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva");
+      view.style.display = "none";
+    });
+    var p = pannello();
+    if (p) p.classList.remove("aperto");
+    portaSu(box);
+    return true;
+  }
+
+  window.collabAppMostraSezione = function (tipo) { apriPagina(tipo); };
+  window.collabAppChiudiSezioni = function () { apriMenu(); };
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-app-menu-btn") : null;
+    if (!btn) return;
+    setTimeout(function () {
+      var attiva = document.querySelector("#collabHomeScreen .collab-app-view.attiva, #collabHomeScreen .collab-app-view.workhub-view-attiva, #collabHomeScreen .collab-app-view.workhub-v112-attiva");
+      if (attiva) portaSu(attiva);
+    }, 60);
+  }, true);
+
+  document.addEventListener("DOMContentLoaded", function () { setTimeout(apriMenu, 250); });
+  window.addEventListener("load", function () { setTimeout(apriMenu, 300); });
+})();
+</script>
+
+
+
+<!-- WORKHUB V118: patch SOLO VISIVO per i 4 bottoni collaboratore.
+     Non cambia salvataggi, Supabase, calcoli, limite 8.50, AVS, trasferte o vacanze.
+     Quando si tocca un bottone, nasconde il menu e mostra subito solo la pagina scelta. -->
+<style id="workhub-v118-bottoni-apri-solo-pagina">
+  #collabHomeScreen.workhub-v118-aperta > .collab-home-card,
+  #collabHomeScreen.workhub-v118-aperta .collab-home-card {
+    display: none !important;
+  }
+  #collabHomeScreen.workhub-v118-aperta .collab-app-view {
+    display: none !important;
+    margin-top: 0 !important;
+  }
+  #collabHomeScreen.workhub-v118-aperta .collab-app-view.workhub-v118-attiva {
+    display: block !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+  #collabHomeScreen.workhub-v118-menu > .collab-home-card,
+  #collabHomeScreen.workhub-v118-menu .collab-home-card {
+    display: block !important;
+  }
+  #collabHomeScreen.workhub-v118-menu .collab-app-view {
+    display: none !important;
+  }
+</style>
+<script id="workhub-v118-bottoni-apri-solo-pagina">
+(function () {
+  if (window.__workhubV118BottoniApriSoloPagina) return;
+  window.__workhubV118BottoniApriSoloPagina = true;
+
+  var MAPPA = {
+    ore: "collabViewOre",
+    mese: "collabViewMese",
+    vacanze: "collabViewVacanze",
+    stampa: "collabViewStampa"
+  };
+
+  function home() { return document.getElementById("collabHomeScreen"); }
+  function pannello() { return document.getElementById("collabQuickPanel"); }
+  function cardMenu() {
+    var h = home();
+    return h ? h.querySelector(".collab-home-card") : null;
+  }
+
+  function portaInAlto() {
+    var p = pannello() || home();
+    try {
+      if (p && typeof p.scrollIntoView === "function") {
+        p.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+      }
+    } catch (_) {}
+  }
+
+  function apriPagina(tipo) {
+    var h = home();
+    var id = MAPPA[tipo];
+    var pagina = id ? document.getElementById(id) : null;
+    if (!h || !pagina) return false;
+
+    h.classList.remove("workhub-v118-menu", "workhub-menu-attivo", "workhub-v112-menu");
+    h.classList.add("workhub-v118-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+
+    var menu = cardMenu();
+    if (menu) menu.style.setProperty("display", "none", "important");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      var attiva = k === tipo;
+      view.classList.toggle("attiva", attiva);
+      view.classList.toggle("workhub-view-attiva", attiva);
+      view.classList.toggle("workhub-v112-attiva", attiva);
+      view.classList.toggle("workhub-v118-attiva", attiva);
+      view.style.setProperty("display", attiva ? "block" : "none", "important");
+      if (attiva) {
+        view.style.setProperty("margin-top", "0", "important");
+        view.style.setProperty("padding-top", "0", "important");
+      }
+    });
+
+    var p = pannello();
+    if (p) p.classList.toggle("aperto", tipo === "ore");
+
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof collabQuickRenderOggi === "function") collabQuickRenderOggi(); } catch (_) {}
+    try { if (typeof collabQuickRenderMese === "function") collabQuickRenderMese(); } catch (_) {}
+    try { if (typeof collabAppRenderVacanze === "function") collabAppRenderVacanze(); } catch (_) {}
+    if (tipo === "ore") setTimeout(function () { try { if (typeof collabQuickMostraSuggerimentiCantiere === "function") collabQuickMostraSuggerimentiCantiere(); } catch (_) {} }, 80);
+
+    setTimeout(portaInAlto, 0);
+    setTimeout(portaInAlto, 80);
+    return true;
+  }
+
+  function apriMenu() {
+    var h = home();
+    if (!h) return false;
+
+    h.classList.remove("workhub-v118-aperta", "workhub-sezione-aperta", "workhub-v112-pagina-aperta");
+    h.classList.add("workhub-v118-menu", "workhub-menu-attivo", "workhub-v112-menu");
+
+    var menu = cardMenu();
+    if (menu) menu.style.removeProperty("display");
+
+    Object.keys(MAPPA).forEach(function (k) {
+      var view = document.getElementById(MAPPA[k]);
+      if (!view) return;
+      view.classList.remove("attiva", "workhub-view-attiva", "workhub-v112-attiva", "workhub-v118-attiva");
+      view.style.setProperty("display", "none", "important");
+    });
+
+    var p = pannello();
+    if (p) p.classList.remove("aperto");
+    setTimeout(portaInAlto, 0);
+    return true;
+  }
+
+  window.collabAppMostraSezione = apriPagina;
+  window.collabAppChiudiSezioni = apriMenu;
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-app-menu-btn") : null;
+    if (!btn) return;
+
+    var testo = (btn.textContent || "").toLowerCase();
+    var tipo = testo.indexOf("resoconto") !== -1 ? "mese" :
+      testo.indexOf("vacanze") !== -1 ? "vacanze" :
+      testo.indexOf("stampa") !== -1 ? "stampa" : "ore";
+
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(function () { apriPagina(tipo); }, 0);
+  }, true);
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest(".collab-back-btn") : null;
+    if (!btn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setTimeout(apriMenu, 0);
+  }, true);
+
+  document.addEventListener("DOMContentLoaded", function () { setTimeout(apriMenu, 350); });
+})();
+</script>
+
+
+<!-- WORKHUB V119: raccolta collaboratore pulita: un solo pulsante e calendario grande a schermo. Solo interfaccia, non modifica calcoli/ore/Supabase. -->
+<style id="workhub-v119-raccolta-pulita-style">
+  .workhub-v119-nascondi-raccolta {
+    display: none !important;
+  }
+
+  /* La raccolta deve essere leggibile come il file scaricato: larga, pulita e con scroll orizzontale. */
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande {
+    width: calc(100vw - 32px) !important;
+    max-width: none !important;
+    margin-left: 50% !important;
+    transform: translateX(-50%) !important;
+    border: 2px solid #dbeafe !important;
+    border-radius: 22px !important;
+    background: #ffffff !important;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.10) !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande > summary {
+    background: #0b74ee !important;
+    color: #ffffff !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 16px 20px !important;
+    font-size: 20px !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande .resoconto-content {
+    padding: 18px !important;
+  }
+
+  /* Nella raccolta restano solo collaboratore e date: i bottoni doppi dentro il pannello vengono nascosti. */
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41,
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix {
+    display: grid !important;
+    grid-template-columns: minmax(260px, 1.2fr) minmax(180px, .8fr) minmax(180px, .8fr) !important;
+    gap: 12px !important;
+    align-items: end !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41 button,
+  #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix button {
+    display: none !important;
+  }
+
+  #workhubRaccoltaCollaboratorePanel select,
+  #workhubRaccoltaCollaboratorePanel input[type="date"] {
+    min-height: 54px !important;
+    border-radius: 14px !important;
+    font-size: 18px !important;
+  }
+
+  #workhubRaccoltaPreview {
+    width: 100% !important;
+  }
+
+  #workhubRaccoltaPreview .calendar-scroll,
+  #workhubRaccoltaPreview .workhub-raccolta-table-wrap-v41,
+  #workhubRaccoltaPreview .scroll-x {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    border-radius: 16px !important;
+    background: #ffffff !important;
+    border: 1px solid #dbeafe !important;
+  }
+
+  #workhubRaccoltaPreview table {
+    border-collapse: collapse !important;
+    width: max-content !important;
+    min-width: 1450px !important;
+    background: #ffffff !important;
+  }
+
+  #workhubRaccoltaPreview th,
+  #workhubRaccoltaPreview td {
+    font-size: 13px !important;
+    line-height: 1.25 !important;
+    padding: 7px 8px !important;
+    vertical-align: middle !important;
+  }
+
+  #workhubRaccoltaPreview .cantiere-col,
+  #workhubRaccoltaPreview th:first-child,
+  #workhubRaccoltaPreview td:first-child {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 5 !important;
+    background: #ffffff !important;
+    box-shadow: 1px 0 0 #e5e7eb !important;
+  }
+
+  #workhubRaccoltaPreview h1,
+  #workhubRaccoltaPreview h2,
+  #workhubRaccoltaPreview h3 {
+    color: #111827 !important;
+  }
+
+  #workhubRaccoltaStato {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+  }
+
+  @media (max-width: 760px) {
+    #workhubRaccoltaCollaboratorePanel.workhub-v119-raccolta-grande {
+      width: calc(100vw - 12px) !important;
+    }
+    #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-v41,
+    #workhubRaccoltaCollaboratorePanel .workhub-raccolta-toolbar-fix {
+      grid-template-columns: 1fr !important;
+    }
+  }
+</style>
+<script id="workhub-v119-raccolta-pulita-script">
+(function () {
+  "use strict";
+  if (window.__workhubV119RaccoltaPulita) return;
+  window.__workhubV119RaccoltaPulita = true;
+
+  function testo(el) { return String((el && el.textContent) || "").replace(/\s+/g, " ").trim().toLowerCase(); }
+  function $(id) { return document.getElementById(id); }
+  function val(id) { var el = $(id); return el ? String(el.value || "").trim() : ""; }
+
+  function ePulsanteRaccolta(btn) {
+    return btn && /apri\s+raccolta\s+collaboratore/i.test(btn.textContent || "");
+  }
+
+  function pulsantiRaccoltaVisibili() {
+    return Array.from(document.querySelectorAll("button")).filter(ePulsanteRaccolta);
+  }
+
+  function trovaPulsantePrincipale(btns) {
+    return btns.find(function (b) { return b.closest && b.closest("#toolbarFoglioMensile"); }) || btns[0] || null;
+  }
+
+  function pulisciPulsantiDoppi() {
+    var btns = pulsantiRaccoltaVisibili();
+    if (!btns.length) return;
+    var principale = trovaPulsantePrincipale(btns);
+    btns.forEach(function (b) {
+      if (b === principale) {
+        b.classList.remove("workhub-v119-nascondi-raccolta");
+        b.textContent = "Apri raccolta collaboratore";
+        b.dataset.workhubV119RaccoltaPrincipale = "1";
+        b.title = "Apre la raccolta collaboratore leggibile a schermo";
+      } else {
+        b.classList.add("workhub-v119-nascondi-raccolta");
+        b.dataset.workhubV119RaccoltaDoppione = "1";
+      }
+    });
+  }
+
+  function sincronizzaFiltri() {
+    var collab = val("filtroCollaboratore") || val("ricercaVeloceCollaboratoreFoglio") || val("workhubRaccoltaCollaboratoreFiltro") || val("collaboratore") || val("collabAppNomeInput");
+    var dal = val("filtroDal") || val("workhubRaccoltaDal");
+    var al = val("filtroAl") || val("workhubRaccoltaAl");
+    var rf = $("workhubRaccoltaCollaboratoreFiltro");
+    var rd = $("workhubRaccoltaDal");
+    var ra = $("workhubRaccoltaAl");
+    if (rf && collab) {
+      rf.value = collab;
+      if (rf.value !== collab) {
+        var q = collab.toLowerCase();
+        Array.from(rf.options || []).some(function (opt) {
+          var v = String(opt.value || opt.textContent || "").toLowerCase();
+          if (v === q || v.indexOf(q) !== -1 || q.indexOf(v) !== -1) { rf.value = opt.value; return true; }
+          return false;
+        });
+      }
+    }
+    if (rd && dal) rd.value = dal;
+    if (ra && al) ra.value = al;
+  }
+
+  function preparaPannello() {
+    if (typeof window.workhubApriRaccoltaCollaboratoreV103 === "function") {
+      try { window.workhubApriRaccoltaCollaboratoreV103({ preventDefault: function () {}, stopPropagation: function () {} }); } catch (e) { console.warn("Raccolta V119 apertura:", e); }
+    }
+    var panel = $("workhubRaccoltaCollaboratorePanel");
+    if (panel) {
+      panel.open = true;
+      panel.classList.add("workhub-v119-raccolta-grande");
+    }
+    sincronizzaFiltri();
+    if (typeof window.workhubRaccoltaCollaboratoreRender === "function") {
+      try { window.workhubRaccoltaCollaboratoreRender(); } catch (e2) { console.warn("Raccolta V119 render:", e2); }
+    }
+    panel = $("workhubRaccoltaCollaboratorePanel");
+    if (panel) panel.classList.add("workhub-v119-raccolta-grande");
+    return panel;
+  }
+
+  function apriRaccoltaPulita(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    pulisciPulsantiDoppi();
+    var panel = preparaPannello();
+    setTimeout(function () {
+      pulisciPulsantiDoppi();
+      panel = preparaPannello() || panel;
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return false;
+  }
+
+  document.addEventListener("click", function (event) {
+    var btn = event.target && event.target.closest ? event.target.closest("button") : null;
+    if (!btn || !ePulsanteRaccolta(btn)) return;
+    if (btn.classList.contains("workhub-v119-nascondi-raccolta")) {
+      event.preventDefault();
+      event.stopPropagation();
+      return false;
+    }
+    return apriRaccoltaPulita(event);
+  }, true);
+
+  ["change", "input"].forEach(function (ev) {
+    document.addEventListener(ev, function (event) {
+      var id = event.target && event.target.id;
+      if (id === "workhubRaccoltaCollaboratoreFiltro" || id === "workhubRaccoltaDal" || id === "workhubRaccoltaAl") {
+        setTimeout(function () {
+          if (typeof window.workhubRaccoltaCollaboratoreRender === "function") window.workhubRaccoltaCollaboratoreRender();
+          var p = $("workhubRaccoltaCollaboratorePanel");
+          if (p) p.classList.add("workhub-v119-raccolta-grande");
+        }, 0);
+      }
+    }, true);
+  });
+
+  window.workhubApriRaccoltaCollaboratorePulitaV119 = apriRaccoltaPulita;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    pulisciPulsantiDoppi();
+    setTimeout(pulisciPulsantiDoppi, 600);
+    setTimeout(function () { var p = $("workhubRaccoltaCollaboratorePanel"); if (p) p.classList.add("workhub-v119-raccolta-grande"); }, 900);
+  });
+  window.addEventListener("load", function () {
+    setTimeout(pulisciPulsantiDoppi, 400);
+    setTimeout(pulisciPulsantiDoppi, 1400);
+  });
+  setInterval(pulisciPulsantiDoppi, 1600);
+})();
+</script>
+
+
+
+<style id="workhub-v120-nascondi-bottone-scarica-schede-solo-visivo">
+  /* V120: nasconde solo visivamente il bottone nelle schede collaboratore/operaio.
+     Non rimuove funzioni, onclick, calcoli, Supabase, ore, AVS o trasferte. */
+  .quick-download-btn {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+</style>
+
+
+
+<script id="workhub-fix-lavorazioni-supabase-v121">
+/* V121 - Caricamento lavorazioni da Supabase nei menu a tendina.
+   Correzione solo sincronizzazione/visuale menu: non modifica calcoli, ore, AVS, trasferte o limite 8.50. */
+(function () {
+  const AZIENDA_ID_FALLBACK = "21af7afa-cbcb-45b9-9a84-f9f9ad68b7fd";
+  let ultimoCaricamento = 0;
+
+  function aziendaId() {
+    try {
+      if (typeof SUPABASE_AZIENDA_ID === "string" && SUPABASE_AZIENDA_ID) return SUPABASE_AZIENDA_ID;
+    } catch (_) {}
+    return AZIENDA_ID_FALLBACK;
+  }
+
+  function testoPulitoSafe(v) {
+    try {
+      if (typeof testoPulito === "function") return testoPulito(v);
+    } catch (_) {}
+    return String(v ?? "").trim().replace(/\s+/g, " ");
+  }
+
+  function normalizzaSafe(lista) {
+    try {
+      if (typeof normalizzaListaVoci === "function") return normalizzaListaVoci(lista);
+    } catch (_) {}
+    const m = new Map();
+    (Array.isArray(lista) ? lista : []).forEach(function (v) {
+      const p = testoPulitoSafe(v);
+      if (!p) return;
+      const k = p.toLocaleLowerCase("it-CH");
+      if (!m.has(k)) m.set(k, p);
+    });
+    return Array.from(m.values()).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function aggiornaMenu() {
+    try { if (typeof salvaVociMenu === "function") salvaVociMenu(); } catch (_) {}
+    try { if (typeof aggiornaMenuTendina === "function") aggiornaMenuTendina(); } catch (_) {}
+    try { if (typeof aggiornaVociVisibili === "function") aggiornaVociVisibili(); } catch (_) {}
+    try { if (typeof collabQuickAggiornaScelte === "function") collabQuickAggiornaScelte(); } catch (_) {}
+    try { if (typeof mostraSuggerimentiLavoro === "function") mostraSuggerimentiLavoro(); } catch (_) {}
+    try { if (typeof collabQuickMostraSuggerimentiLavoro === "function") collabQuickMostraSuggerimentiLavoro(); } catch (_) {}
+  }
+
+  async function caricaLavorazioniOnline(forza) {
+    const adesso = Date.now();
+    if (!forza && adesso - ultimoCaricamento < 15000) return;
+    ultimoCaricamento = adesso;
+
+    try {
+      if (typeof inizializzaSupabase !== "function") return;
+      const client = inizializzaSupabase();
+      if (!client || typeof client.from !== "function") return;
+
+      let sessione = null;
+      try {
+        if (typeof supabaseSessioneCorrente === "function") sessione = await supabaseSessioneCorrente();
+      } catch (_) {}
+      if (!sessione && typeof supabaseUtente !== "undefined" && !supabaseUtente) return;
+
+      let res = await client
+        .from("lavorazioni")
+        .select("id,nome,attivo")
+        .eq("azienda_id", aziendaId())
+        .eq("attivo", true)
+        .order("nome", { ascending: true });
+
+      if (res && res.error) {
+        console.warn("Caricamento lavorazioni con azienda_id non riuscito, riprovo senza filtro azienda:", res.error);
+        res = await client
+          .from("lavorazioni")
+          .select("id,nome,attivo")
+          .eq("attivo", true)
+          .order("nome", { ascending: true });
+      }
+
+      if (res && res.error) {
+        console.warn("Caricamento lavorazioni Supabase non riuscito:", res.error);
+        return;
+      }
+
+      const righe = Array.isArray(res && res.data) ? res.data : [];
+      if (!righe.length) return;
+
+      if (typeof vociMenu === "undefined" || !vociMenu) return;
+      if (!Array.isArray(vociMenu.lavori)) vociMenu.lavori = [];
+      if (!vociMenu._supabaseIds) vociMenu._supabaseIds = { collaboratori: {}, cantieri: {}, lavori: {} };
+      if (!vociMenu._supabaseIds.lavori) vociMenu._supabaseIds.lavori = {};
+
+      righe.forEach(function (r) {
+        const nome = testoPulitoSafe(r && r.nome);
+        if (!nome) return;
+        vociMenu.lavori.push(nome);
+        if (r.id) vociMenu._supabaseIds.lavori[nome] = r.id;
+      });
+
+      vociMenu.lavori = normalizzaSafe(vociMenu.lavori);
+      aggiornaMenu();
+    } catch (err) {
+      console.warn("Caricamento lavorazioni Supabase non riuscito:", err);
+    }
+  }
+
+  window.workhubRicaricaLavorazioniSupabase = function () {
+    return caricaLavorazioniOnline(true);
+  };
+
+  function installa() {
+    if (window.__workhubFixLavorazioniSupabaseV121) return;
+    window.__workhubFixLavorazioniSupabaseV121 = true;
+
+    const originaleCarica = window.supabaseCaricaDati;
+    if (typeof originaleCarica === "function" && !originaleCarica.__workhubFixLavorazioniV121) {
+      window.supabaseCaricaDati = async function () {
+        const risultato = await originaleCarica.apply(this, arguments);
+        await caricaLavorazioniOnline(true);
+        return risultato;
+      };
+      window.supabaseCaricaDati.__workhubFixLavorazioniV121 = true;
+    }
+
+    ["aggiungiLavoroConId", "aggiungiVoceManuale", "supabaseAssicuraVoce"].forEach(function (nomeFunzione) {
+      const originale = window[nomeFunzione];
+      if (typeof originale !== "function" || originale.__workhubFixLavorazioniV121) return;
+      window[nomeFunzione] = async function () {
+        const risultato = await originale.apply(this, arguments);
+        setTimeout(function () { caricaLavorazioniOnline(true); }, 500);
+        return risultato;
+      };
+      window[nomeFunzione].__workhubFixLavorazioniV121 = true;
+    });
+
+    document.addEventListener("focusin", function (ev) {
+      const id = ev && ev.target && ev.target.id;
+      if (id === "lavoro" || id === "collabQuickLavoro" || id === "selectLavoroInserimento" || id === "selectLavoroGestione") {
+        caricaLavorazioniOnline(false);
+      }
+    });
+
+    document.addEventListener("click", function (ev) {
+      const t = ev && ev.target;
+      if (!t) return;
+      const id = t.id || "";
+      const testo = String(t.textContent || "");
+      if (id === "toggleGestioneLavoriBtn" || id === "selectLavoroGestione" || testo.includes("lavoro svolto")) {
+        caricaLavorazioniOnline(false);
+      }
+    });
+
+    setTimeout(function () { caricaLavorazioniOnline(true); }, 1200);
+    setTimeout(function () { caricaLavorazioniOnline(true); }, 3500);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(installa, 300);
+    setTimeout(installa, 1200);
+  });
+  setTimeout(installa, 2000);
+})();
+</script>
+
+
+
+<style id="workhub-lavorazioni-mobile-unica-scelta-v124-style">
+  /* V124: sul telefono resta una sola scelta lavorazione visibile: menu blu con ID. */
+  #collabQuickLavoro {
+    position: absolute !important;
+    left: -99999px !important;
+    top: auto !important;
+    width: 1px !important;
+    height: 1px !important;
+    min-height: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+  }
+
+  #collabQuickListaLavori,
+  #collabQuickSuggerimentiLavoro,
+  #collabQuickSuggerimentiLavoro.workhub-lav-mobile-panel,
+  #collabQuickSuggerimentiLavoro * {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  #workhubSelectTouchCollabLavoroV123 {
+    display: block !important;
+    position: relative !important;
+    z-index: 30 !important;
+    width: 100% !important;
+    min-height: 72px !important;
+    margin: 8px 0 10px !important;
+    padding: 0 18px !important;
+    border: 3px solid #0d6efd !important;
+    border-radius: 22px !important;
+    background: #eaf3ff !important;
+    color: #0f172a !important;
+    font-size: 20px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: rgba(13, 110, 253, 0.22) !important;
+  }
+
+  #workhubSelectTouchCollabLavoroV123:focus {
+    outline: none !important;
+    border-color: #084298 !important;
+    box-shadow: 0 0 0 5px rgba(13, 110, 253, 0.18) !important;
+  }
+
+  #workhubSelectTouchCollabLavoroV123 option {
+    color: #0f172a !important;
+    background: #ffffff !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+  }
+
+  .workhub-lavorazioni-touch-aiuto-v123 {
+    display: block !important;
+    margin: 0 0 10px !important;
+    padding: 10px 12px !important;
+    border: 1px solid #bfdbfe !important;
+    border-radius: 15px !important;
+    background: #eff6ff !important;
+    color: #1e3a8a !important;
+    font-size: 15px !important;
+    line-height: 1.35 !important;
+  }
+</style>
+
+<script id="workhub-lavorazioni-mobile-unica-scelta-v124-script">
+  /*
+    V124 - riparazione efficace telefono:
+    - nasconde il campo trasparente/scorrevole dei suggerimenti lavorazione;
+    - lascia solo il menu blu nativo;
+    - riempie il menu con ID + lavorazione quando l'ID e' disponibile;
+    - non cambia database, calcoli, ore o salvataggio: scrive solo il valore scelto nel campo originale nascosto.
+  */
+  (function () {
+    if (window.__workhubLavorazioniUnicaSceltaV124) return;
+    window.__workhubLavorazioniUnicaSceltaV124 = true;
+
+    var STORAGE_KEY = 'workhub_lavorazioni_id_principale_sottovoci_v1';
+
+    function pulito(v) { return String(v || '').trim().replace(/\s+/g, ' '); }
+    function norm(v) {
+      return pulito(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+    function esc(v) {
+      return String(v || '').replace(/[&<>"]/g, function (c) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
+      });
+    }
+    function soloNumeroId(v) {
+      var m = String(v || '').match(/(?:ID\s*)?(\d+)/i);
+      return m ? String(Number(m[1])).padStart(3, '0') : '';
+    }
+    function labelId(id) {
+      id = soloNumeroId(id);
+      return id ? 'ID' + id : '';
+    }
+    function aggiungi(lista, visti, voce, id, principale) {
+      voce = pulito(voce);
+      id = soloNumeroId(id);
+      principale = pulito(principale);
+      if (!voce || /^(scegli|seleziona|tocca|menu)/i.test(voce)) return;
+
+      var label = voce;
+      if (id && !/^ID\s*\d+/i.test(label)) {
+        var gruppo = principale && norm(principale) !== norm(voce) ? ' - ' + principale : '';
+        label = labelId(id) + gruppo + ' - ' + voce;
+      }
+
+      var k = norm(label);
+      if (!k || visti[k]) return;
+      visti[k] = true;
+      lista.push({ label: label, sortId: id || '999999', sortNome: norm(voce) });
+    }
+    function daArray(lista, visti, arr) {
+      if (!Array.isArray(arr)) return;
+      arr.forEach(function (item) {
+        if (typeof item === 'string') aggiungi(lista, visti, item, '', '');
+        else if (item && typeof item === 'object') aggiungi(lista, visti, item.voce || item.nome || item.lavoro || item.descrizione || item.label || item.value, item.id || item.id_principale || item.id_lavoro, item.principale || item.gruppo || item.reparto);
+      });
+    }
+    function leggiVoci() {
+      var lista = [];
+      var visti = {};
+
+      try { daArray(lista, visti, JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); } catch (_) {}
+
+      ['collabQuickListaLavori', 'listaLavori'].forEach(function (idEl) {
+        var el = document.getElementById(idEl);
+        if (!el) return;
+        Array.from(el.querySelectorAll('option')).forEach(function (opt) {
+          aggiungi(lista, visti, opt.value || opt.textContent, '', '');
+        });
+      });
+
+      ['selectLavoroInserimento', 'selectLavoroGestione'].forEach(function (idEl) {
+        var el = document.getElementById(idEl);
+        if (!el) return;
+        Array.from(el.options || []).forEach(function (opt) {
+          aggiungi(lista, visti, opt.value || opt.textContent, '', '');
+        });
+      });
+
+      try {
+        if (window.vociMenu) {
+          daArray(lista, visti, window.vociMenu.lavori);
+          daArray(lista, visti, window.vociMenu.lavorazioni);
+        }
+      } catch (_) {}
+      ['lavoriSvolti', 'tipologieLavoro', 'workhubLavorazioni', 'lavorazioni'].forEach(function (nome) {
+        try { daArray(lista, visti, window[nome]); } catch (_) {}
+      });
+
+      lista.sort(function (a, b) {
+        if (a.sortId !== b.sortId) return a.sortId.localeCompare(b.sortId, 'it', { numeric: true });
+        return a.sortNome.localeCompare(b.sortNome, 'it');
+      });
+      return lista;
+    }
+    function assicuraSelect() {
+      var input = document.getElementById('collabQuickLavoro');
+      if (!input) return null;
+      var select = document.getElementById('workhubSelectTouchCollabLavoroV123');
+      if (!select) {
+        select = document.createElement('select');
+        select.id = 'workhubSelectTouchCollabLavoroV123';
+        select.setAttribute('aria-label', 'Scegli lavorazione con ID');
+        input.insertAdjacentElement('afterend', select);
+      }
+      return select;
+    }
+    function chiudiListaTrasparente() {
+      var box = document.getElementById('collabQuickSuggerimentiLavoro');
+      if (box) {
+        box.innerHTML = '';
+        box.classList.remove('workhub-lav-mobile-panel');
+        box.style.display = 'none';
+        box.style.visibility = 'hidden';
+        box.style.pointerEvents = 'none';
+      }
+    }
+    function aggiorna() {
+      var input = document.getElementById('collabQuickLavoro');
+      var select = assicuraSelect();
+      if (!input || !select) return;
+
+      chiudiListaTrasparente();
+
+      var corrente = pulito(input.value || select.value || '');
+      var voci = leggiVoci();
+      var html = '<option value="">Tocca qui e scegli lavorazione con ID</option>';
+      voci.forEach(function (r) { html += '<option value="' + esc(r.label) + '">' + esc(r.label) + '</option>'; });
+      if (select.dataset.workhubHtmlV124 !== html) {
+        select.innerHTML = html;
+        select.dataset.workhubHtmlV124 = html;
+      }
+      var match = voci.find(function (r) { return norm(r.label) === norm(corrente); });
+      select.value = match ? match.label : '';
+    }
+    function scegli(ev) {
+      var select = document.getElementById('workhubSelectTouchCollabLavoroV123');
+      var input = document.getElementById('collabQuickLavoro');
+      if (!select || !input) return;
+      var valore = pulito(select.value);
+      if (!valore) return;
+
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+      }
+
+      input.value = valore;
+      input.dataset.workhubSelezionatoTouchV124 = '1';
+      chiudiListaTrasparente();
+      try { input.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
+    }
+    function installa() {
+      var select = assicuraSelect();
+      var input = document.getElementById('collabQuickLavoro');
+      if (!select || !input) return;
+      aggiorna();
+      if (!select.__workhubV124Change) {
+        select.__workhubV124Change = true;
+        select.addEventListener('change', scegli, true);
+        select.addEventListener('input', scegli, true);
+        select.addEventListener('touchstart', chiudiListaTrasparente, true);
+        select.addEventListener('click', chiudiListaTrasparente, true);
+      }
+      if (!input.__workhubV124Block) {
+        input.__workhubV124Block = true;
+        input.addEventListener('focus', function (ev) {
+          ev.preventDefault();
+          input.blur();
+          chiudiListaTrasparente();
+        }, true);
+        input.addEventListener('input', chiudiListaTrasparente, true);
+      }
+    }
+
+    var vecchiaCollab = window.collabQuickMostraSuggerimentiLavoro;
+    window.collabQuickMostraSuggerimentiLavoro = function () {
+      chiudiListaTrasparente();
+      aggiorna();
+      return false;
+    };
+
+    ['aggiornaMenu', 'aggiornaListeLavori', 'workhubAggiornaLavorazioniEconomiche', 'workhubRicaricaLavorazioniSupabase'].forEach(function (nome) {
+      var originale = window[nome];
+      if (typeof originale !== 'function' || originale.__workhubLavUnicaV124) return;
+      window[nome] = function () {
+        var risultato = originale.apply(this, arguments);
+        setTimeout(aggiorna, 50);
+        setTimeout(aggiorna, 500);
+        return risultato;
+      };
+      window[nome].__workhubLavUnicaV124 = true;
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+      installa();
+      setTimeout(installa, 300);
+      setTimeout(installa, 1200);
+      setTimeout(installa, 2500);
+    });
+    window.addEventListener('load', function () { setTimeout(installa, 300); });
+    document.addEventListener('click', function (ev) {
+      var t = ev && ev.target;
+      if (t && t.id !== 'workhubSelectTouchCollabLavoroV123') chiudiListaTrasparente();
+    }, true);
+    setInterval(function () { installa(); aggiorna(); }, 2500);
+  })();
+</script>
+</body>
+</html>
